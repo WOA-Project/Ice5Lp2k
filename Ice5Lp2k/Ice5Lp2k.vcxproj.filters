@@ -31,6 +31,15 @@
     <ClCompile Include="SpiTransport.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Interrupt.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Calibration.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="UC120.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="device\Ice5Lp2k.inf">

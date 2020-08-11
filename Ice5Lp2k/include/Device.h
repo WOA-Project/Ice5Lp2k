@@ -76,7 +76,22 @@ Ice5Lp2kCreateDevice(
     _Inout_ PWDFDEVICE_INIT DeviceInit
     );
 
+EVT_WDF_DEVICE_PREPARE_HARDWARE UC120EvtDevicePrepareHardware;
+EVT_WDF_DEVICE_D0_ENTRY UC120EvtDeviceD0Entry;
 EVT_WDF_IO_QUEUE_IO_WRITE Ice5Lp2kQueueEvtWrite;
+
+EVT_WDF_INTERRUPT_ISR UC120InterruptIsr;
+EVT_WDF_INTERRUPT_ENABLE UC120InterruptEnable;
+EVT_WDF_INTERRUPT_DISABLE UC120InterruptDisable;
+
+EVT_WDF_INTERRUPT_ISR PlugdetInterruptIsr;
+
+EVT_WDF_INTERRUPT_ISR PmicInterrupt1Isr;
+EVT_WDF_INTERRUPT_WORKITEM PmicInterrupt1WorkItem;
+
+EVT_WDF_INTERRUPT_ISR PmicInterrupt2Isr;
+
+void UC120InterruptIsrInternal(PDEVICE_CONTEXT DeviceContext);
 
 NTSTATUS UC120SpiRead(
     _In_ PSPI_DEVICE_CONNECTION Connection,
@@ -87,5 +102,15 @@ NTSTATUS UC120SpiWrite(
     _In_ PSPI_DEVICE_CONNECTION Connection,
     _In_ UCHAR RegisterAddr, _In_ PVOID Content, _In_ size_t Size
 );
+
+NTSTATUS UC120ReportState(PDEVICE_CONTEXT DeviceContext, int Param1, int Param2, int Param3, int Param4, int Param5);
+NTSTATUS UC120ToggleReg4YetUnknown(PDEVICE_CONTEXT DeviceContext, UCHAR Bit);
+void UC120ProcessIncomingPdMessage(PDEVICE_CONTEXT DeviceContext);
+void UC120SynchronizeIncomingMessageSize(PDEVICE_CONTEXT DeviceContext);
+void UC120FulfillIncomingMessage(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Request);
+
+NTSTATUS SetVConn(PDEVICE_CONTEXT DeviceContext, UCHAR Enable);
+NTSTATUS SetPowerRole(PDEVICE_CONTEXT DeviceContext, UCHAR PowerRole);
+
 
 EXTERN_C_END

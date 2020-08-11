@@ -19,10 +19,13 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Calibration.c" />
     <ClCompile Include="Device.c" />
     <ClCompile Include="Driver.c" />
+    <ClCompile Include="Interrupt.c" />
     <ClCompile Include="Queue.c" />
     <ClCompile Include="SpiTransport.c" />
+    <ClCompile Include="UC120.c" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{FB0B506B-738D-4988-AD71-D9ADE176FBF3}</ProjectGuid>
