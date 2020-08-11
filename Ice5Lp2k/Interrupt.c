@@ -147,7 +147,7 @@ void UC120InterruptIsrInternal(PDEVICE_CONTEXT DeviceContext)
                 if (DeviceContext->InternalState[2])
                 {
                     // sub_406D0C(v1, 0, v12, v8);
-                    UC120ReportState(DeviceContext, 0, Power, Type, 0, Polarity);
+                    UC120ReportState(DeviceContext, 0, Power, Type, Type, Polarity);
                     DeviceContext->InternalState[2] = 0;
                     DeviceContext->InternalState[6] = Power;
                     DeviceContext->InternalState[10] = Type;
