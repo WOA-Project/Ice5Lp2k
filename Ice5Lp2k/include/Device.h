@@ -112,5 +112,10 @@ void UC120FulfillIncomingMessage(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Reque
 NTSTATUS SetVConn(PDEVICE_CONTEXT DeviceContext, UCHAR Enable);
 NTSTATUS SetPowerRole(PDEVICE_CONTEXT DeviceContext, UCHAR PowerRole);
 
+NTSTATUS UC120AcquireInitializeResourcesFromAcpi(PDEVICE_CONTEXT DeviceContext, WDFCMRESLIST ResourcesTranslated);
+NTSTATUS UC120OpenResources(WDFDEVICE Device, PSPI_DEVICE_CONNECTION ConnectionInfo);
+NTSTATUS UC120Calibrate(PDEVICE_CONTEXT DeviceContext);
+
+#define UC120_CALIBRATIONFILE_SIZE 11
 
 EXTERN_C_END

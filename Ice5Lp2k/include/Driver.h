@@ -19,6 +19,9 @@ Environment:
 #include <initguid.h>
 #include <spb.h>
 
+#define RESHUB_USE_HELPER_ROUTINES
+#include <reshub.h>
+
 #include "device.h"
 #include "queue.h"
 #include "trace.h"
