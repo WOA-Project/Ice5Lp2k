@@ -195,3 +195,171 @@ BOOLEAN PlugdetInterruptIsr(WDFINTERRUPT Interrupt, ULONG MessageId)
     return TRUE;
 }
 
+BOOLEAN PmicInterrupt1Isr(WDFINTERRUPT Interrupt, ULONG MessageId)
+{
+    WDFDEVICE Device;
+    NTSTATUS status;
+    PDEVICE_CONTEXT pDeviceContext;
+
+    UNREFERENCED_PARAMETER(MessageId);
+
+    Device = WdfInterruptGetDevice(Interrupt);
+    pDeviceContext = DeviceGetContext(Device);
+
+    WdfWaitLockAcquire(pDeviceContext->DeviceWaitLock, 0);
+    pDeviceContext->Register5 |= 0x40u;
+    status = UC120SpiWrite(&pDeviceContext->SpiDevice, 5, &pDeviceContext->Register5, 1);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
+    }
+
+    WdfWaitLockRelease(pDeviceContext->DeviceWaitLock);
+    WdfInterruptQueueWorkItemForIsr(Interrupt);
+
+    return TRUE;
+}
+
+BOOLEAN PmicInterrupt2Isr(WDFINTERRUPT Interrupt, ULONG MessageId)
+{
+    WDFDEVICE Device; // r0
+    NTSTATUS status; // r0
+    UCHAR RegisterValue; // [sp+8h] [bp-18h]
+    PDEVICE_CONTEXT pDeviceContext;
+
+    UNREFERENCED_PARAMETER(MessageId);
+
+    Device = WdfInterruptGetDevice(Interrupt);
+    pDeviceContext = DeviceGetContext(Device);
+
+    WdfWaitLockAcquire(pDeviceContext->DeviceWaitLock, 0);
+    RegisterValue = 0;
+
+    if (UC120SpiRead(&pDeviceContext->SpiDevice, 5, &RegisterValue, 1u) < 0 || RegisterValue & 0x40)
+    {
+        pDeviceContext->Register5 &= 0xBFu;
+        status = UC120SpiWrite(&pDeviceContext->SpiDevice, 5, &pDeviceContext->Register5, 1);
+        if (!NT_SUCCESS(status))
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
+        }
+
+        WdfWaitLockRelease(pDeviceContext->DeviceWaitLock);
+
+        UC120ReportState(pDeviceContext, 1, 2, 7, 4, 0);
+        pDeviceContext->InternalState[10] = 7;
+        pDeviceContext->InternalState[14] = 4;
+        pDeviceContext->InternalState[2] = 1;
+        pDeviceContext->InternalState[6] = 2;
+        pDeviceContext->InternalState[18] = 0;
+
+        UC120ToggleReg4YetUnknown(pDeviceContext, 1);
+    }
+    else
+    {
+        WdfWaitLockRelease(pDeviceContext->DeviceWaitLock);
+    }
+
+    return TRUE;
+}
+
+void PmicInterrupt1WorkItem(WDFINTERRUPT Interrupt, WDFOBJECT AssociatedObject)
+{
+    WDFDEVICE Device; // r0
+    PDEVICE_CONTEXT pDeviceContext;
+    LARGE_INTEGER Delay; // [sp+8h] [bp-18h]
+
+    UNREFERENCED_PARAMETER(AssociatedObject);
+
+    Device = WdfInterruptGetDevice(Interrupt);
+    pDeviceContext = DeviceGetContext(Device);
+
+    Delay.QuadPart = 0xFFFFFFFFFFB3B4C0;
+    KeDelayExecutionThread(0, 0, &Delay);
+
+    if (pDeviceContext->InternalState[2] == 1 && pDeviceContext->Register5 & 0x40)
+    {
+        UC120ReportState(pDeviceContext, 0, 0, 1, 0, 0);
+        pDeviceContext->InternalState[18] = 0;
+        pDeviceContext->InternalState[10] = 0;
+        pDeviceContext->InternalState[14] = 0;
+        pDeviceContext->InternalState[6] = 1;
+    }
+}
+
+NTSTATUS UC120InterruptEnable(WDFINTERRUPT Interrupt, WDFDEVICE AssociatedDevice)
+{
+    WDFDEVICE Device; // r0
+    PDEVICE_CONTEXT pDeviceContext; // r0
+    NTSTATUS status; // r5
+
+    UNREFERENCED_PARAMETER(AssociatedDevice);
+
+    Device = WdfInterruptGetDevice(Interrupt);
+    pDeviceContext = DeviceGetContext(Device);
+    pDeviceContext->Register2 = 0xFFu;
+    status = UC120SpiWrite(&pDeviceContext->SpiDevice, 2, &pDeviceContext->Register2, 1);
+    if (NT_SUCCESS(status))
+    {
+        pDeviceContext->Register3 = 0xFFu;
+        status = UC120SpiWrite(&pDeviceContext->SpiDevice, 3, &pDeviceContext->Register3, 1);
+        if (NT_SUCCESS(status))
+        {
+            pDeviceContext->Register4 |= 1u;
+            status = UC120SpiWrite(&pDeviceContext->SpiDevice, 4, &pDeviceContext->Register4, 1);
+            if (NT_SUCCESS(status))
+            {
+                pDeviceContext->Register5 &= 0x7Fu;
+                status = UC120SpiWrite(&pDeviceContext->SpiDevice, 5, &pDeviceContext->Register5, 1);
+                if (NT_SUCCESS(status))
+                {
+                    UC120SpiRead(&pDeviceContext->SpiDevice, 2, &pDeviceContext->Register2, 1u);
+                    status = UC120SpiRead(&pDeviceContext->SpiDevice, 7, &pDeviceContext->Register7, 1u);
+                    if (!NT_SUCCESS(status))
+                    {
+                        TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiRead failed %!STATUS!", status);
+                    }
+                }
+                else
+                {
+                    TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
+                }
+            }
+            else
+            {
+                TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
+            }
+        }
+        else
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
+        }
+    }
+    else
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
+    }
+
+    return status;
+}
+
+NTSTATUS UC120InterruptDisable(WDFINTERRUPT Interrupt, WDFDEVICE AssociatedDevice)
+{
+    WDFDEVICE Device; // r0
+    PDEVICE_CONTEXT pDeviceContext; // r0
+    NTSTATUS status; // r4
+
+    UNREFERENCED_PARAMETER(AssociatedDevice);
+
+    Device = WdfInterruptGetDevice(Interrupt);
+    pDeviceContext = DeviceGetContext(Device);
+
+    pDeviceContext->Register4 &= 0xFEu;
+    status = UC120SpiWrite(&pDeviceContext->SpiDevice, 4, &pDeviceContext->Register4, 1);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
+    }
+
+    return status;
+}
