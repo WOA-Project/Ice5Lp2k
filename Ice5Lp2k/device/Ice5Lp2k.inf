@@ -4,8 +4,8 @@
 
 [Version]
 Signature="$WINDOWS NT$"
-Class=Sample ; TODO: edit Class
-ClassGuid={78A1C341-4539-11d3-B88D-00C04FAD5171} ; TODO: edit ClassGuid
+Class = System
+ClassGuid = {4d36e97d-e325-11ce-bfc1-08002be10318}
 Provider=%ManufacturerName%
 CatalogFile=Ice5Lp2k.cat
 DriverVer= ; TODO: set DriverVer in stampinf property pages
@@ -13,15 +13,6 @@ DriverVer= ; TODO: set DriverVer in stampinf property pages
 [DestinationDirs]
 DefaultDestDir = 12
 Ice5Lp2k_Device_CoInstaller_CopyFiles = 11
-
-; ================= Class section =====================
-
-[ClassInstall32]
-Addreg=SampleClassReg
-
-[SampleClassReg]
-HKR,,,0,%ClassName%
-HKR,,Icon,,-5
 
 [SourceDisksNames]
 1 = %DiskName%,,,""
@@ -38,7 +29,7 @@ WdfCoInstaller$KMDFCOINSTALLERVERSION$.dll=1 ; make sure the number matches with
 %ManufacturerName%=Standard,NT$ARCH$
 
 [Standard.NT$ARCH$]
-%Ice5Lp2k.DeviceDesc%=Ice5Lp2k_Device, Root\Ice5Lp2k ; TODO: edit hw-id
+%Ice5Lp2k.DeviceDesc%=Ice5Lp2k_Device, ACPI\MSHW1006
 
 [Ice5Lp2k_Device.NT]
 CopyFiles=Drivers_Dir
@@ -79,8 +70,7 @@ KmdfLibraryVersion = $KMDFVERSION$
 
 [Strings]
 SPSVCINST_ASSOCSERVICE= 0x00000002
-ManufacturerName="<Your manufacturer name>" ;TODO: Replace with your manufacturer name
-ClassName="Samples" ; TODO: edit ClassName
+ManufacturerName="LumiaWoA Authors"
 DiskName = "Ice5Lp2k Installation Disk"
-Ice5Lp2k.DeviceDesc = "Ice5Lp2k Device"
+Ice5Lp2k.DeviceDesc = "Lattice UC120 USB-C PD PHY Device"
 Ice5Lp2k.SVCDESC = "Ice5Lp2k Service"
