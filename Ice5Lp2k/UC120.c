@@ -395,3 +395,237 @@ NTSTATUS UC120Calibrate(PDEVICE_CONTEXT DeviceContext)
 Exit:
     return status;
 }
+
+void UC120IoctlEnableGoodCRC(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Request)
+{
+    UCHAR GoodCrcEn; // r2
+    NTSTATUS status; // r4
+    PUCHAR buffer; // [sp+8h] [bp-20h]
+
+    status = WdfRequestRetrieveInputBuffer(Request, 4u, &buffer, 0);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "WdfRequestRetrieveInputBuffer failed %!STATUS!", status);
+        goto LABEL_11;
+    }
+
+    if (*buffer)
+    {
+        if (*buffer != 1)
+        {
+            status = 0xC000000D;
+        LABEL_11:
+            WdfRequestComplete(Request, status);
+            return;
+        }
+        GoodCrcEn = 1;
+    }
+    else
+    {
+        GoodCrcEn = 0;
+    }
+
+    DeviceContext->Register4 = DeviceContext->Register4 & 0x7F | (GoodCrcEn << 7);
+    status = UC120SpiWrite(&DeviceContext->SpiDevice, 4, &DeviceContext->Register4, 1);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
+    }
+
+    WdfRequestCompleteWithInformation(Request, status, 4u);
+}
+
+void UC120IoctlExecuteHardReset(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Request)
+{
+    NTSTATUS status; // r5
+
+    DeviceContext->Register0 = 32;
+    status = UC120SpiWrite(&DeviceContext->SpiDevice, 0, &DeviceContext->Register0, 1);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
+    }
+
+    WdfRequestComplete(Request, status);
+}
+
+void UC120IoctlIsCableConnected(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Request)
+{
+    NTSTATUS status; // r6
+    unsigned int* buffer; // [sp+8h] [bp-38h]
+
+    status = WdfRequestRetrieveOutputBuffer(Request, 0x10u, &buffer, 0);
+    if (NT_SUCCESS(status))
+    {
+        buffer[0] = DeviceContext->InternalState[6];
+        buffer[1] = DeviceContext->InternalState[10];
+        buffer[2] = DeviceContext->InternalState[14];
+        buffer[3] = DeviceContext->InternalState[18];
+        WdfRequestCompleteWithInformation(Request, status, 0x10u);
+    }
+    else
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "WdfRequestRetrieveOutputBuffer failed %!STATUS!", status);
+        WdfRequestComplete(Request, status);
+    }
+}
+
+void UC120IoctlReportNewDataRole(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Request)
+{
+    UCHAR Role; // r2
+    NTSTATUS status; // r4
+    PUCHAR buffer; // [sp+8h] [bp-20h]
+
+    status = WdfRequestRetrieveInputBuffer(Request, 4u, &buffer, 0);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "WdfRequestRetrieveInputBuffer failed %!STATUS!", status);
+        goto LABEL_11;
+    }
+
+    if (*buffer)
+    {
+        if (*buffer != 1)
+        {
+            status = 0xC000000D;
+        LABEL_11:
+            WdfRequestComplete(Request, status);
+            return;
+        }
+        Role = 0;
+    }
+    else
+    {
+        Role = 1;
+    }
+
+    DeviceContext->Register5 ^= (DeviceContext->Register5 ^ 4 * Role) & 4;
+    status = UC120SpiWrite(&DeviceContext->SpiDevice, 5, &DeviceContext->Register5, 1);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
+    }
+
+    WdfRequestCompleteWithInformation(Request, status, 4u);
+}
+
+void UC120IoctlReportNewPowerRole(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Request)
+{
+    NTSTATUS status; // r4
+    UCHAR incomingRequest; // r1
+    PUCHAR buffer; // [sp+8h] [bp-20h]
+
+    UCHAR v12;
+    UCHAR v13;
+
+    if (DeviceContext->InternalState[2])
+    {
+        status = 0xC0000184;
+        goto LABEL_53;
+    }
+
+    status = WdfRequestRetrieveInputBuffer(Request, 4u, &buffer, 0);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "WdfRequestRetrieveInputBuffer failed %!STATUS!", status);
+        goto LABEL_53;
+    }
+
+    status = UC120SpiRead(&DeviceContext->SpiDevice, 5, &DeviceContext->Register5, 1u);
+    if (status < 0)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiRead failed %!STATUS!", status);
+        goto LABEL_53;
+    }
+
+    incomingRequest = *buffer;
+    if (!*buffer && !(DeviceContext->Register5 & 1))
+    {
+        goto LABEL_53;
+    }
+
+    if (incomingRequest == 1)
+    {
+        if (DeviceContext->Register5 & 1)
+        {
+            goto LABEL_53;
+        }
+        v12 = 1;
+        v13 = 0;
+    LABEL_38:
+        DeviceContext->Register5 ^= (DeviceContext->Register5 ^ v12) & 1;
+        status = UC120SpiWrite(&DeviceContext->SpiDevice, 5, &DeviceContext->Register5, 1);
+        if (NT_SUCCESS(status))
+        {
+            DeviceContext->Register5 ^= (DeviceContext->Register5 ^ (v13 << 6)) & 0x40;
+            status = UC120SpiWrite(&DeviceContext->SpiDevice, 5, &DeviceContext->Register5, 1);
+            if (NT_SUCCESS(status))
+            {
+                goto LABEL_53;
+            }
+        }
+        else
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
+            goto LABEL_53;
+        }
+        goto LABEL_53;
+    }
+
+    if (!incomingRequest)
+    {
+        v12 = 0;
+        v13 = 1;
+        goto LABEL_38;
+    }
+
+    status = 0xC000000D;
+LABEL_53:
+    WdfRequestComplete(Request, status);
+}
+
+void UC120IoctlSetVConnRoleSwitch(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Request)
+{
+    NTSTATUS status; // r4
+    UCHAR incomingRequest; // r2
+    PUCHAR buffer; // [sp+8h] [bp-20h]
+
+    if (DeviceContext->InternalState[2])
+    {
+        status = 0xC0000184;
+        goto LABEL_39;
+    }
+
+    status = WdfRequestRetrieveInputBuffer(Request, 4u, &buffer, 0);
+    if (!NT_SUCCESS(status))
+    {
+        goto LABEL_39;
+    }
+
+    if (*buffer && *buffer != 1)
+    {
+        status = 0xC000000D;
+        goto LABEL_39;
+    }
+
+    status = UC120SpiRead(&DeviceContext->SpiDevice, 5, &DeviceContext->Register5, 1u);
+    if (!NT_SUCCESS(status))
+    {
+        goto LABEL_39;
+    }
+
+    incomingRequest = *buffer;
+    if (!*buffer && !(DeviceContext->Register5 & 0x20))
+    {
+        goto LABEL_39;
+    }
+
+    if (incomingRequest != 1 || !(DeviceContext->Register5 & 0x20))
+    {
+        status = SetVConn(DeviceContext, incomingRequest != 0);
+        goto LABEL_39;
+    }
+
+LABEL_39:
+    WdfRequestComplete(Request, status);
+}

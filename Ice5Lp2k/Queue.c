@@ -126,41 +126,73 @@ Ice5Lp2kEvtIoDeviceControl(
     _In_ size_t InputBufferLength,
     _In_ ULONG IoControlCode
     )
-/*++
-
-Routine Description:
-
-    This event is invoked when the framework receives IRP_MJ_DEVICE_CONTROL request.
-
-Arguments:
-
-    Queue -  Handle to the framework queue object that is associated with the
-             I/O request.
-
-    Request - Handle to a framework request object.
-
-    OutputBufferLength - Size of the output buffer in bytes
-
-    InputBufferLength - Size of the input buffer in bytes
-
-    IoControlCode - I/O control code.
-
-Return Value:
-
-    VOID
-
---*/
 {
-    TraceEvents(TRACE_LEVEL_INFORMATION, 
-                TRACE_QUEUE, 
-                "%!FUNC! Queue 0x%p, Request 0x%p OutputBufferLength %d InputBufferLength %d IoControlCode %d", 
-                Queue, Request, (int) OutputBufferLength, (int) InputBufferLength, IoControlCode);
+    WDFDEVICE Device; // r0
+    PDEVICE_CONTEXT pDeviceContext; // r0
+    NTSTATUS forwardStatus; // r4
 
-    WdfRequestComplete(Request, STATUS_SUCCESS);
+    UNREFERENCED_PARAMETER(OutputBufferLength);
+    UNREFERENCED_PARAMETER(InputBufferLength);
 
-    return;
+    Device = WdfIoQueueGetDevice(Queue);
+    pDeviceContext = DeviceGetContext(Device);
+
+    if (IoControlCode != 0x22C006)
+    {
+        WdfWaitLockAcquire(pDeviceContext->DeviceWaitLock, 0);
+    }
+        
+    if (IoControlCode > 0x22C015)
+    {
+        switch (IoControlCode)
+        {
+        case 0x22C019u:
+            UC120IoctlEnableGoodCRC(pDeviceContext, Request);
+            break;
+        case 0x22C01Cu:
+            UC120IoctlExecuteHardReset(pDeviceContext, Request);
+            goto LABEL_62;
+        case 0x83203E84:
+            // Not going to support mfg calibration write request
+            WdfRequestComplete(Request, STATUS_NOT_SUPPORTED);
+            goto LABEL_62;
+        }
+        goto LABEL_61;
+    }
+    if (IoControlCode == 0x22C015)
+    {
+        UC120IoctlSetVConnRoleSwitch(pDeviceContext, Request);
+        goto LABEL_62;
+    }
+    if (IoControlCode != 0x22C006)
+    {
+        switch (IoControlCode)
+        {
+        case 0x22C00Au:
+            UC120IoctlIsCableConnected(pDeviceContext, Request);
+            goto LABEL_62;
+        case 0x22C00Du:
+            UC120IoctlReportNewDataRole(pDeviceContext, Request);
+            goto LABEL_62;
+        case 0x22C011u:
+            UC120IoctlReportNewPowerRole(pDeviceContext, Request);
+        LABEL_62:
+            WdfWaitLockRelease(pDeviceContext->DeviceWaitLock);
+            return;
+        }
+    LABEL_61:
+        if (IoControlCode == 0x22C006)
+            return;
+        goto LABEL_62;
+    }
+
+    forwardStatus = WdfRequestForwardToIoQueue(Request, pDeviceContext->DelayedIoCtlQueue);
+    if (!NT_SUCCESS(forwardStatus))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, TRACE_QUEUE, "WdfRequestForwardToIoQueue failed %!STATUS!", forwardStatus);
+        WdfRequestComplete(Request, forwardStatus);
+    }
 }
-
 
 void Ice5Lp2kQueueEvtWrite(WDFQUEUE Queue, WDFREQUEST Request, size_t Length)
 {

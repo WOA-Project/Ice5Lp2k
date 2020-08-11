@@ -116,6 +116,13 @@ NTSTATUS UC120AcquireInitializeResourcesFromAcpi(PDEVICE_CONTEXT DeviceContext, 
 NTSTATUS UC120OpenResources(WDFDEVICE Device, PSPI_DEVICE_CONNECTION ConnectionInfo);
 NTSTATUS UC120Calibrate(PDEVICE_CONTEXT DeviceContext);
 
+void UC120IoctlEnableGoodCRC(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Request);
+void UC120IoctlExecuteHardReset(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Request);
+void UC120IoctlIsCableConnected(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Request);
+void UC120IoctlReportNewDataRole(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Request);
+void UC120IoctlReportNewPowerRole(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Request);
+void UC120IoctlSetVConnRoleSwitch(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Request);
+
 #define UC120_CALIBRATIONFILE_SIZE 11
 
 EXTERN_C_END
