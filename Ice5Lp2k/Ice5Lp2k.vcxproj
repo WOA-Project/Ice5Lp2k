@@ -165,14 +165,14 @@
     <FilesToPackage Include="$(TargetPath)" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="device\Ice5Lp2k.inf" />
-  </ItemGroup>
-  <ItemGroup>
     <ClInclude Include="include\Device.h" />
     <ClInclude Include="include\Driver.h" />
     <ClInclude Include="include\Public.h" />
     <ClInclude Include="include\Queue.h" />
     <ClInclude Include="include\Trace.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Inf Include="Ice5Lp2k.inf" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
