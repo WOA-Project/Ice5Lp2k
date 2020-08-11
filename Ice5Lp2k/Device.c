@@ -317,4 +317,3 @@ NTSTATUS UC120EvtDeviceD0Entry(WDFDEVICE Device, WDF_POWER_DEVICE_STATE Previous
 
     return status;
 }
-

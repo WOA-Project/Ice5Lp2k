@@ -164,7 +164,86 @@ Return Value:
 
 void Ice5Lp2kQueueEvtWrite(WDFQUEUE Queue, WDFREQUEST Request, size_t Length)
 {
-    UNREFERENCED_PARAMETER(Queue);
-    UNREFERENCED_PARAMETER(Request);
-    UNREFERENCED_PARAMETER(Length);
+    WDFDEVICE Device; // r0
+    PDEVICE_CONTEXT pDeviceContext; // r0
+    NTSTATUS status; // r4
+    UCHAR s22; // r3
+    PVOID Content; // [sp+8h] [bp-30h]
+    LARGE_INTEGER WaitTime; // [sp+10h] [bp-28h]
+
+    Device = WdfIoQueueGetDevice(Queue);
+    pDeviceContext = DeviceGetContext(Device);
+    if (!Length)
+    {
+        status = 0xC000000D;
+        goto LABEL_11;
+    }
+
+    pDeviceContext->InternalState[22] = 0xFFu;
+    KeClearEvent(&pDeviceContext->PdEvent);
+
+    status = WdfRequestRetrieveInputBuffer(Request, Length, &Content, 0);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, TRACE_QUEUE, "WdfRequestRetrieveInputBuffer failed %!STATUS!", status);
+        goto LABEL_17;
+    }
+
+    WdfWaitLockAcquire(pDeviceContext->DeviceWaitLock, 0);
+
+    status = UC120SpiWrite(&pDeviceContext->SpiDevice, 16, Content, Length);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, TRACE_QUEUE, "UC120SpiWrite failed %!STATUS!", status);
+        goto LABEL_17;
+    }
+
+    status = UC120SpiWrite(&pDeviceContext->SpiDevice, 0, &Length, 1);
+    if (!NT_SUCCESS(status))
+    {
+    LABEL_17:
+    LABEL_46:
+    LABEL_11:
+        WdfRequestComplete(Request, status);
+        return;
+    }
+
+    WdfWaitLockRelease(pDeviceContext->DeviceWaitLock);
+
+    WaitTime.QuadPart = 0xFFFFFFFFFFFCF2C0;
+    status = KeWaitForSingleObject(&pDeviceContext->PdEvent, 0, 0, 0, &WaitTime);
+
+    if (status == 258)
+    {
+        status = 0xC00000B5;
+        goto LABEL_46;
+    }
+
+    s22 = pDeviceContext->InternalState[22];
+    if (pDeviceContext->InternalState[22])
+    {
+        switch (s22)
+        {
+        case 1:
+            status = 0xC00000AE;
+            goto LABEL_46;
+        case 2:
+            status = 0xC00000B5;
+            goto LABEL_46;
+        case 6:
+            status = 0xC00002CA;
+            goto LABEL_46;
+        }
+    }
+    else
+    {
+        status = 0;
+    }
+
+    if (status < 0)
+    {
+        goto LABEL_46;
+    }
+
+    WdfRequestCompleteWithInformation(Request, status, Length);
 }
