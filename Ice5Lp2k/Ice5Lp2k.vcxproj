@@ -22,13 +22,7 @@
     <ClCompile Include="Device.c" />
     <ClCompile Include="Driver.c" />
     <ClCompile Include="Queue.c" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="Device.h" />
-    <ClInclude Include="Driver.h" />
-    <ClInclude Include="Public.h" />
-    <ClInclude Include="Queue.h" />
-    <ClInclude Include="Trace.h" />
+    <ClCompile Include="SpiTransport.c" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{FB0B506B-738D-4988-AD71-D9ADE176FBF3}</ProjectGuid>
@@ -170,6 +164,13 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="device\Ice5Lp2k.inf" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include\Device.h" />
+    <ClInclude Include="include\Driver.h" />
+    <ClInclude Include="include\Public.h" />
+    <ClInclude Include="include\Queue.h" />
+    <ClInclude Include="include\Trace.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
