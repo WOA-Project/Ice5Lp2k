@@ -22,6 +22,7 @@ Ice5Lp2kCreateDevice(
     WDF_INTERRUPT_CONFIG interruptConfig;
 
     PAGED_CODE();
+    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&deviceAttributes, DEVICE_CONTEXT);
     WDF_PNPPOWER_EVENT_CALLBACKS_INIT(&pnpPowerCallbacks);
@@ -37,12 +38,12 @@ Ice5Lp2kCreateDevice(
 
         pDeviceContext->Device = device;
         // I don't know what they do. Leave them as is.
-        pDeviceContext->InternalState[14] = 4;
-        pDeviceContext->InternalState[10] = 7;
         pDeviceContext->InternalState[2] = 1;
-        pDeviceContext->InternalState[18] = 0;
         pDeviceContext->InternalState[6] = 2;
-
+        pDeviceContext->InternalState[10] = 7;
+        pDeviceContext->InternalState[14] = 4;
+        pDeviceContext->InternalState[18] = 0;
+        
         // Initialize interrupts
         WDF_INTERRUPT_CONFIG_INIT(&interruptConfig, UC120InterruptIsr, NULL);
         interruptConfig.PassiveHandling = TRUE;
@@ -140,6 +141,7 @@ Ice5Lp2kCreateDevice(
         status = Ice5Lp2kQueueInitialize(device);
     }
 
+    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
     return status;
 }
 
@@ -154,11 +156,7 @@ UC120AcquireInitializeResourcesFromAcpi(
     ULONG ResourceCount;
 
     PAGED_CODE();
-
-    TraceEvents(
-        TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "-> UC120AcquireInitializeResourcesFromAcpi");
-    DbgPrintEx(
-        DPFLTR_IHVBUS_ID, DPFLTR_INFO_LEVEL, "UC120AcquireInitializeResourcesFromAcpi entry\n");
+    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
     ResourceCount = WdfCmResourceListGetCount(ResourcesTranslated);
     for (ULONG i = 0; i < ResourceCount; i++) {
@@ -183,11 +181,7 @@ UC120AcquireInitializeResourcesFromAcpi(
         }
     }
 
-    TraceEvents(
-        TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "<- UC120AcquireInitializeResourcesFromAcpi");
-    DbgPrintEx(
-        DPFLTR_IHVBUS_ID, DPFLTR_INFO_LEVEL, "UC120AcquireInitializeResourcesFromAcpi exit: 0x%x\n",
-        Status);
+    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
     return Status;
 }
 
@@ -200,8 +194,7 @@ NTSTATUS UC120OpenResources(
     UNICODE_STRING            ReadString;
     WCHAR                     ReadStringBuffer[260];
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "UC120OpenResources Entry");
-    DbgPrintEx(DPFLTR_IHVBUS_ID, DPFLTR_INFO_LEVEL, "UC120OpenResources entry\n");
+    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
     RtlInitEmptyUnicodeString(
         &ReadString, ReadStringBuffer, sizeof(ReadStringBuffer));
@@ -231,8 +224,7 @@ NTSTATUS UC120OpenResources(
     }
 
 Exit:
-    DbgPrintEx(DPFLTR_IHVBUS_ID, DPFLTR_INFO_LEVEL, "UC120OpenResources exit: 0x%x\n", status);
-    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "UC120OpenResources Exit");
+    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
     return status;
 }
 
@@ -242,6 +234,7 @@ NTSTATUS UC120EvtDevicePrepareHardware(WDFDEVICE Device, WDFCMRESLIST ResourcesR
     NTSTATUS status; // r4
 
     UNREFERENCED_PARAMETER(ResourcesRaw);
+    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
     pDeviceContext = DeviceGetContext(Device);
     status = UC120AcquireInitializeResourcesFromAcpi(pDeviceContext, ResourcesTranslated);
@@ -271,6 +264,7 @@ NTSTATUS UC120EvtDevicePrepareHardware(WDFDEVICE Device, WDFCMRESLIST ResourcesR
         TraceEvents(TRACE_LEVEL_ERROR, TRACE_DRIVER, "Uc120AcquireInitializeResourcesFromAcpi failed 0x%x", status);
     }
 
+    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
     return status;
 }
 
@@ -280,6 +274,7 @@ NTSTATUS UC120EvtDeviceD0Entry(WDFDEVICE Device, WDF_POWER_DEVICE_STATE Previous
     NTSTATUS status; // r5
 
     UNREFERENCED_PARAMETER(PreviousState);
+    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
     pDeviceContext = DeviceGetContext(Device);
     pDeviceContext->Register4 |= 6u;
@@ -315,5 +310,6 @@ NTSTATUS UC120EvtDeviceD0Entry(WDFDEVICE Device, WDF_POWER_DEVICE_STATE Previous
         TraceEvents(TRACE_LEVEL_ERROR, TRACE_DRIVER, "UC120SpiWrite failed 0x%x", status);
     }
 
+    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
     return status;
 }

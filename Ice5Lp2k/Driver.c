@@ -51,7 +51,6 @@ DriverEntry(
     }
 
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
-
     return status;
 }
 

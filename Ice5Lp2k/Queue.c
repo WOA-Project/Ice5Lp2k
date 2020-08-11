@@ -17,12 +17,13 @@ Ice5Lp2kQueueInitialize(
     PDEVICE_CONTEXT pDeviceContext;
 
     PAGED_CODE();
+    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
     pDeviceContext = DeviceGetContext(Device);
 
     WDF_IO_QUEUE_CONFIG_INIT_DEFAULT_QUEUE(
         &queueConfig,
-        WdfIoQueueDispatchParallel
+        WdfIoQueueDispatchSequential
     );
 
     queueConfig.EvtIoDeviceControl = Ice5Lp2kEvtIoDeviceControl;
@@ -35,6 +36,7 @@ Ice5Lp2kQueueInitialize(
 
     if (!NT_SUCCESS(status)) {
         TraceEvents(TRACE_LEVEL_ERROR, TRACE_QUEUE, "WdfIoQueueCreate failed %!STATUS!", status);
+        TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
         return status;
     }
 
@@ -53,6 +55,7 @@ Ice5Lp2kQueueInitialize(
 
     if (!NT_SUCCESS(status)) {
         TraceEvents(TRACE_LEVEL_ERROR, TRACE_QUEUE, "WdfIoQueueCreate failed %!STATUS!", status);
+        TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
         return status;
     }
 
@@ -71,6 +74,7 @@ Ice5Lp2kQueueInitialize(
 
     if (!NT_SUCCESS(status)) {
         TraceEvents(TRACE_LEVEL_ERROR, TRACE_QUEUE, "WdfIoQueueCreate failed %!STATUS!", status);
+        TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
         return status;
     }
 
@@ -82,6 +86,7 @@ Ice5Lp2kQueueInitialize(
 
     if (!NT_SUCCESS(status)) {
         TraceEvents(TRACE_LEVEL_ERROR, TRACE_QUEUE, "WdfDeviceConfigureRequestDispatching failed %!STATUS!", status);
+        TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
         return status;
     }
 
@@ -101,6 +106,7 @@ Ice5Lp2kQueueInitialize(
 
     if (!NT_SUCCESS(status)) {
         TraceEvents(TRACE_LEVEL_ERROR, TRACE_QUEUE, "WdfIoQueueCreate failed %!STATUS!", status);
+        TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
         return status;
     }
 
@@ -112,9 +118,11 @@ Ice5Lp2kQueueInitialize(
 
     if (!NT_SUCCESS(status)) {
         TraceEvents(TRACE_LEVEL_ERROR, TRACE_QUEUE, "WdfDeviceConfigureRequestDispatching failed %!STATUS!", status);
+        TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
         return status;
     }
 
+    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
     return status;
 }
 
@@ -131,8 +139,10 @@ Ice5Lp2kEvtIoDeviceControl(
     PDEVICE_CONTEXT pDeviceContext; // r0
     NTSTATUS forwardStatus; // r4
 
-    UNREFERENCED_PARAMETER(OutputBufferLength);
-    UNREFERENCED_PARAMETER(InputBufferLength);
+    TraceEvents(TRACE_LEVEL_INFORMATION,
+        TRACE_QUEUE,
+        "%!FUNC! Queue 0x%p, Request 0x%p OutputBufferLength %d InputBufferLength %d IoControlCode %d",
+        Queue, Request, (int)OutputBufferLength, (int)InputBufferLength, IoControlCode);
 
     Device = WdfIoQueueGetDevice(Queue);
     pDeviceContext = DeviceGetContext(Device);
@@ -203,6 +213,8 @@ void Ice5Lp2kQueueEvtWrite(WDFQUEUE Queue, WDFREQUEST Request, size_t Length)
     PVOID Content; // [sp+8h] [bp-30h]
     LARGE_INTEGER WaitTime; // [sp+10h] [bp-28h]
 
+    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
+
     Device = WdfIoQueueGetDevice(Queue);
     pDeviceContext = DeviceGetContext(Device);
     if (!Length)
@@ -237,6 +249,7 @@ void Ice5Lp2kQueueEvtWrite(WDFQUEUE Queue, WDFREQUEST Request, size_t Length)
     LABEL_46:
     LABEL_11:
         WdfRequestComplete(Request, status);
+        TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
         return;
     }
 
@@ -278,4 +291,5 @@ void Ice5Lp2kQueueEvtWrite(WDFQUEUE Queue, WDFREQUEST Request, size_t Length)
     }
 
     WdfRequestCompleteWithInformation(Request, status, Length);
+    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
 }

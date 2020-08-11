@@ -10,6 +10,7 @@ BOOLEAN UC120InterruptIsr(WDFINTERRUPT Interrupt, ULONG MessageID)
     NTSTATUS status;
 
     UNREFERENCED_PARAMETER(MessageID);
+    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
     Device = WdfInterruptGetDevice(Interrupt);
     pDeviceContext = DeviceGetContext(Device);
@@ -32,6 +33,7 @@ BOOLEAN UC120InterruptIsr(WDFINTERRUPT Interrupt, ULONG MessageID)
     }
 
     WdfWaitLockRelease(pDeviceContext->DeviceWaitLock);
+    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
     return TRUE;
 }
 
@@ -48,12 +50,15 @@ void UC120InterruptIsrInternal(PDEVICE_CONTEXT DeviceContext)
     UCHAR Register2Bits; // r1
     UCHAR StateIndex; // r6
 
+    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
+
     if (DeviceContext->Register2 & 0xFC)
     {
         status = UC120SpiRead(&DeviceContext->SpiDevice, 7, &DeviceContext->Register7, 1u);
         if (!NT_SUCCESS(status))
         {
             TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiRead failed %!STATUS!", status);
+            TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
             return;
         }
 
@@ -101,11 +106,11 @@ void UC120InterruptIsrInternal(PDEVICE_CONTEXT DeviceContext)
                 {
                     // sub_406D0C(v1, 1, 2, 7);
                     UC120ReportState(DeviceContext, 1, 2, 7, 4, 0);
+                    DeviceContext->InternalState[2] = 1;
                     DeviceContext->InternalState[6] = 2;
                     DeviceContext->InternalState[10] = 7;
-                    DeviceContext->InternalState[2] = 1;
-                    DeviceContext->InternalState[18] = 0;
                     DeviceContext->InternalState[14] = 4;
+                    DeviceContext->InternalState[18] = 0;
                     UC120ToggleReg4YetUnknown(DeviceContext, 1);
                     SetVConn(DeviceContext, 0);
                     SetPowerRole(DeviceContext, 0);
@@ -142,11 +147,11 @@ void UC120InterruptIsrInternal(PDEVICE_CONTEXT DeviceContext)
                 if (DeviceContext->InternalState[2])
                 {
                     // sub_406D0C(v1, 0, v12, v8);
-                    UC120ReportState(DeviceContext, 0, Power, Type, Type, Polarity);
+                    UC120ReportState(DeviceContext, 0, Power, Type, 0, Polarity);
                     DeviceContext->InternalState[2] = 0;
                     DeviceContext->InternalState[6] = Power;
-                    DeviceContext->InternalState[18] = Polarity;
                     DeviceContext->InternalState[10] = Type;
+                    DeviceContext->InternalState[18] = Polarity;
                     UC120ToggleReg4YetUnknown(DeviceContext, 0);
                 }
                 break;
@@ -172,6 +177,7 @@ void UC120InterruptIsrInternal(PDEVICE_CONTEXT DeviceContext)
             }
             if (StateIndex == DeviceContext->InternalState[14])
             {
+                TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
                 return;
             }
             // result = sub_406D0C(v1, 2, 2, 7);
@@ -185,13 +191,17 @@ void UC120InterruptIsrInternal(PDEVICE_CONTEXT DeviceContext)
     if (DeviceContext->Register2 & 1) {
         UC120SynchronizeIncomingMessageSize(DeviceContext);
     }
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
 }
 
 BOOLEAN PlugdetInterruptIsr(WDFINTERRUPT Interrupt, ULONG MessageId)
 {
     UNREFERENCED_PARAMETER(Interrupt);
     UNREFERENCED_PARAMETER(MessageId);
+    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
+    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
     return TRUE;
 }
 
@@ -202,6 +212,7 @@ BOOLEAN PmicInterrupt1Isr(WDFINTERRUPT Interrupt, ULONG MessageId)
     PDEVICE_CONTEXT pDeviceContext;
 
     UNREFERENCED_PARAMETER(MessageId);
+    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
     Device = WdfInterruptGetDevice(Interrupt);
     pDeviceContext = DeviceGetContext(Device);
@@ -217,6 +228,7 @@ BOOLEAN PmicInterrupt1Isr(WDFINTERRUPT Interrupt, ULONG MessageId)
     WdfWaitLockRelease(pDeviceContext->DeviceWaitLock);
     WdfInterruptQueueWorkItemForIsr(Interrupt);
 
+    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
     return TRUE;
 }
 
@@ -228,6 +240,7 @@ BOOLEAN PmicInterrupt2Isr(WDFINTERRUPT Interrupt, ULONG MessageId)
     PDEVICE_CONTEXT pDeviceContext;
 
     UNREFERENCED_PARAMETER(MessageId);
+    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
     Device = WdfInterruptGetDevice(Interrupt);
     pDeviceContext = DeviceGetContext(Device);
@@ -260,6 +273,7 @@ BOOLEAN PmicInterrupt2Isr(WDFINTERRUPT Interrupt, ULONG MessageId)
         WdfWaitLockRelease(pDeviceContext->DeviceWaitLock);
     }
 
+    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
     return TRUE;
 }
 
@@ -270,6 +284,7 @@ void PmicInterrupt1WorkItem(WDFINTERRUPT Interrupt, WDFOBJECT AssociatedObject)
     LARGE_INTEGER Delay; // [sp+8h] [bp-18h]
 
     UNREFERENCED_PARAMETER(AssociatedObject);
+    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
     Device = WdfInterruptGetDevice(Interrupt);
     pDeviceContext = DeviceGetContext(Device);
@@ -285,6 +300,8 @@ void PmicInterrupt1WorkItem(WDFINTERRUPT Interrupt, WDFOBJECT AssociatedObject)
         pDeviceContext->InternalState[14] = 0;
         pDeviceContext->InternalState[6] = 1;
     }
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
 }
 
 NTSTATUS UC120InterruptEnable(WDFINTERRUPT Interrupt, WDFDEVICE AssociatedDevice)
@@ -294,6 +311,7 @@ NTSTATUS UC120InterruptEnable(WDFINTERRUPT Interrupt, WDFDEVICE AssociatedDevice
     NTSTATUS status; // r5
 
     UNREFERENCED_PARAMETER(AssociatedDevice);
+    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
     Device = WdfInterruptGetDevice(Interrupt);
     pDeviceContext = DeviceGetContext(Device);
@@ -340,6 +358,7 @@ NTSTATUS UC120InterruptEnable(WDFINTERRUPT Interrupt, WDFDEVICE AssociatedDevice
         TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
     }
 
+    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
     return status;
 }
 
@@ -350,6 +369,7 @@ NTSTATUS UC120InterruptDisable(WDFINTERRUPT Interrupt, WDFDEVICE AssociatedDevic
     NTSTATUS status; // r4
 
     UNREFERENCED_PARAMETER(AssociatedDevice);
+    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
     Device = WdfInterruptGetDevice(Interrupt);
     pDeviceContext = DeviceGetContext(Device);
@@ -361,5 +381,6 @@ NTSTATUS UC120InterruptDisable(WDFINTERRUPT Interrupt, WDFDEVICE AssociatedDevic
         TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
     }
 
+    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
     return status;
 }
