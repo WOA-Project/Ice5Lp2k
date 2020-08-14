@@ -47,8 +47,8 @@ void UC120InterruptIsrInternal(PDEVICE_CONTEXT DeviceContext)
     UCHAR Polarity; // r10
     UCHAR CableType; // r3
     UCHAR Power; // r7
-    UCHAR Register2Bits; // r1
-    UCHAR StateIndex; // r6
+    UCHAR Current; // r1
+    UCHAR CurrentChanged; // r6
 
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
@@ -66,7 +66,8 @@ void UC120InterruptIsrInternal(PDEVICE_CONTEXT DeviceContext)
         if (Role)
         {
             Reg7Value = DeviceContext->Register7;
-            Type = 3;
+            // It is actually current. IDA think UcmType is a __int64 and set the higher 32bits.
+            Current = 3;
 
             if (Reg7Value & 0x40) {
                 CablePolarity = 2;
@@ -83,19 +84,19 @@ void UC120InterruptIsrInternal(PDEVICE_CONTEXT DeviceContext)
                 switch (CableType)
                 {
                 case 1:
-                    Type = 0;
+                    Current = 0;
                     break;
                 case 2:
-                    Type = 1;
+                    Current = 1;
                     break;
                 case 3:
-                    Type = 2;
+                    Current = 2;
                     break;
                 }
             }
             else
             {
-                Type = 3;
+                Current = 3;
             }
 
             switch (Role)
@@ -104,7 +105,7 @@ void UC120InterruptIsrInternal(PDEVICE_CONTEXT DeviceContext)
             case 4u:
                 if (DeviceContext->InternalState[2] != 1)
                 {
-                    // sub_406D0C(v1, 1, 2, 7);
+                    // Cable detach, world reset
                     UC120ReportState(DeviceContext, 1, 2, 7, 4, 0);
                     DeviceContext->InternalState[2] = 1;
                     DeviceContext->InternalState[6] = 2;
@@ -146,11 +147,11 @@ void UC120InterruptIsrInternal(PDEVICE_CONTEXT DeviceContext)
             LABEL_41:
                 if (DeviceContext->InternalState[2])
                 {
-                    // sub_406D0C(v1, 0, v12, v8);
-                    UC120ReportState(DeviceContext, 0, Power, Type, Type, Polarity);
+                    UC120ReportState(DeviceContext, 0, Power, Type, Current, Polarity);
                     DeviceContext->InternalState[2] = 0;
                     DeviceContext->InternalState[6] = Power;
                     DeviceContext->InternalState[10] = Type;
+                    DeviceContext->InternalState[14] = Current;
                     DeviceContext->InternalState[18] = Polarity;
                     UC120ToggleReg4YetUnknown(DeviceContext, 0);
                 }
@@ -159,30 +160,33 @@ void UC120InterruptIsrInternal(PDEVICE_CONTEXT DeviceContext)
                 break;
             }
         }
-        Register2Bits = DeviceContext->Register2 >> 6;
-        if (Register2Bits)
+        CurrentChanged = DeviceContext->Register2 >> 6;
+        if (CurrentChanged)
         {
-            StateIndex = 4;
-            switch (Register2Bits)
+            Current = 4;
+            switch (CurrentChanged)
             {
             case 1u:
-                StateIndex = 0;
+                // UcmTypeCCurrentDefaultUsb
+                Current = 0;
                 break;
             case 2u:
-                StateIndex = 1;
+                // UcmTypeCCurrent1500mA
+                Current = 1;
                 break;
             case 3u:
-                StateIndex = 2;
+                // UcmTypeCCurrent3000mA
+                Current = 2;
                 break;
             }
-            if (StateIndex == DeviceContext->InternalState[14])
+            if (Current == DeviceContext->InternalState[14])
             {
                 TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
                 return;
             }
             // result = sub_406D0C(v1, 2, 2, 7);
-            UC120ReportState(DeviceContext, 2, 2, 7, StateIndex, 0);
-            DeviceContext->InternalState[14] = StateIndex;
+            UC120ReportState(DeviceContext, 2, 2, 7, Current, Current);
+            DeviceContext->InternalState[14] = Current;
         }
     }
     if (DeviceContext->Register2 & 2) {
@@ -259,6 +263,7 @@ BOOLEAN PmicInterrupt2Isr(WDFINTERRUPT Interrupt, ULONG MessageId)
 
         WdfWaitLockRelease(pDeviceContext->DeviceWaitLock);
 
+        // Cable detach
         UC120ReportState(pDeviceContext, 1, 2, 7, 4, 0);
         pDeviceContext->InternalState[10] = 7;
         pDeviceContext->InternalState[14] = 4;

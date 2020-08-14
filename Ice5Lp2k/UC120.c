@@ -3,7 +3,7 @@
 #include <driver.h>
 #include "UC120.tmh"
 
-NTSTATUS UC120ReportState(PDEVICE_CONTEXT DeviceContext, int Param1, int Param2, int Param3, int Param4, int Param5)
+NTSTATUS UC120ReportState(PDEVICE_CONTEXT DeviceContext, int MessageType, int Power, int PartnerType, int UsbCurrentType, int Polarity)
 {
     NTSTATUS status = STATUS_SUCCESS; // r6
     ULONG count; // r8
@@ -39,20 +39,25 @@ NTSTATUS UC120ReportState(PDEVICE_CONTEXT DeviceContext, int Param1, int Param2,
                 {
                     RtlZeroMemory(Buffer, 20);
 
-                    Buffer->State0 = Param1;
-                    if (Param1)
+                    // Param1 is message type
+                    // 0: PD msg
+                    // 1: detach
+                    // 2: current change
+                    Buffer->State0 = MessageType;
+
+                    if (MessageType)
                     {
-                        if (Param1 == 2)
+                        if (MessageType == 2)
                         {
-                            Buffer->State1 = Param4;
+                            Buffer->State1 = UsbCurrentType;
                         }
                     }
                     else
                     {
-                        Buffer->State1 = Param2;
-                        Buffer->State2 = Param4;
-                        Buffer->State3 = Param3;
-                        Buffer->State4 = Param5;
+                        Buffer->State1 = Power;
+                        Buffer->State2 = PartnerType;
+                        Buffer->State3 = UsbCurrentType;
+                        Buffer->State4 = Polarity;
                     }
 
                     WdfRequestCompleteWithInformation(PendingRequest, status, 20);

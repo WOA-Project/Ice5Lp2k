@@ -116,6 +116,8 @@
     <OutDir>$(SolutionDir)build\artifacts\$(Platform)\$(ConfigurationName)\</OutDir>
     <IntDir>$(SolutionDir)build\intermediate\$(Platform)\$(ConfigurationName)\</IntDir>
     <IncludePath>$(ProjectDir)include;$(IncludePath)</IncludePath>
+    <EnableInf2cat>false</EnableInf2cat>
+    <Inf2CatWindowsVersionList>10_rs3_arm;$(Inf2CatWindowsVersionList)</Inf2CatWindowsVersionList>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
