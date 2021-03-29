@@ -63,12 +63,12 @@ Ice5Lp2kCreateDevice(
         pDeviceContext = DeviceGetContext(device);
 
         pDeviceContext->Device = device;
-        // I don't know what they do. Leave them as is.
-        pDeviceContext->InternalState[2] = 1;
-        pDeviceContext->InternalState[6] = 2;
-        pDeviceContext->InternalState[10] = 7;
-        pDeviceContext->InternalState[14] = 4;
-        pDeviceContext->InternalState[18] = 0;
+        
+        pDeviceContext->Uc120Event = Uc120EventDetach;
+        pDeviceContext->Uc120PortType = Uc120PortTypeUnknown;
+        pDeviceContext->PortPartnerType = Uc120PortPartnerTypeUnknown;
+        pDeviceContext->AdvertisedCurrentLevel = Uc120AdvertisedCurrentLevelUnknown;
+        pDeviceContext->Orientation = 0;
         
         // Initialize interrupts
         WDF_INTERRUPT_CONFIG_INIT(&interruptConfig, UC120InterruptIsr, NULL);
@@ -256,8 +256,8 @@ Exit:
 
 NTSTATUS UC120EvtDevicePrepareHardware(WDFDEVICE Device, WDFCMRESLIST ResourcesRaw, WDFCMRESLIST ResourcesTranslated)
 {
-    PDEVICE_CONTEXT pDeviceContext; // r7
-    NTSTATUS status; // r4
+    PDEVICE_CONTEXT pDeviceContext;
+    NTSTATUS status;
 
     UNREFERENCED_PARAMETER(ResourcesRaw);
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
@@ -296,8 +296,8 @@ NTSTATUS UC120EvtDevicePrepareHardware(WDFDEVICE Device, WDFCMRESLIST ResourcesR
 
 NTSTATUS UC120EvtDeviceD0Entry(WDFDEVICE Device, WDF_POWER_DEVICE_STATE PreviousState)
 {
-    PDEVICE_CONTEXT pDeviceContext; // r6
-    NTSTATUS status; // r5
+    PDEVICE_CONTEXT pDeviceContext;
+    NTSTATUS status;
 
     UNREFERENCED_PARAMETER(PreviousState);
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");

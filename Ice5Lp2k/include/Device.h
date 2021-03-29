@@ -41,8 +41,13 @@ typedef struct _DEVICE_CONTEXT
     UCHAR Register8;
     UCHAR Register13;
 
-    // Leave all internal states as is - not going to decode them
-    UCHAR InternalState[26];
+    UC120_EVENT Uc120Event;
+    UC120_PORT_TYPE Uc120PortType;
+    UC120_ADVERTISED_CURRENT_LEVEL AdvertisedCurrentLevel;
+    UC120_PORT_PARTNER_TYPE PortPartnerType;
+    unsigned short Orientation;
+
+    UCHAR PDMessageType;
 
     KEVENT PdEvent;
 
@@ -51,15 +56,6 @@ typedef struct _DEVICE_CONTEXT
     // When UC120 is calibrated, set to 1
     UCHAR Calibrated;
 } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
-
-// This is another weird thing to leave as is
-typedef struct _UC120_STATE {
-    unsigned int State0;
-    unsigned int State1;
-    unsigned int State2;
-    unsigned int State3;
-    unsigned int State4;
-} UC120_STATE, * PUC120_STATE;
 
 //
 // This macro will generate an inline function called DeviceGetContext
@@ -103,7 +99,14 @@ NTSTATUS UC120SpiWrite(
     _In_ UCHAR RegisterAddr, _In_ PVOID Content, _In_ size_t Size
 );
 
-NTSTATUS UC120ReportState(PDEVICE_CONTEXT DeviceContext, int Param1, int Param2, int Param3, int Param4, int Param5);
+NTSTATUS UC120ReportState(
+    PDEVICE_CONTEXT DeviceContext,
+    UC120_EVENT MessageType,
+    UC120_PORT_TYPE Power,
+    UC120_PORT_PARTNER_TYPE PartnerType,
+    UC120_ADVERTISED_CURRENT_LEVEL UsbCurrentType,
+    unsigned short Polarity);
+
 NTSTATUS UC120ToggleReg4YetUnknown(PDEVICE_CONTEXT DeviceContext, UCHAR Bit);
 void UC120ProcessIncomingPdMessage(PDEVICE_CONTEXT DeviceContext);
 void UC120SynchronizeIncomingMessageSize(PDEVICE_CONTEXT DeviceContext);
@@ -116,10 +119,10 @@ NTSTATUS UC120AcquireInitializeResourcesFromAcpi(PDEVICE_CONTEXT DeviceContext, 
 NTSTATUS UC120OpenResources(WDFDEVICE Device, PSPI_DEVICE_CONNECTION ConnectionInfo);
 NTSTATUS UC120Calibrate(PDEVICE_CONTEXT DeviceContext);
 
-void UC120IoctlEnableGoodCRC(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Request);
+void UC120PDMessagingEnable(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Request);
 void UC120IoctlExecuteHardReset(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Request);
-void UC120IoctlIsCableConnected(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Request);
-void UC120IoctlReportNewDataRole(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Request);
+void UC120GetCableDetectionState(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Request);
+void UC120SetPortDataRole(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Request);
 void UC120IoctlReportNewPowerRole(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Request);
 void UC120IoctlSetVConnRoleSwitch(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Request);
 

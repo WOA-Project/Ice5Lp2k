@@ -33,8 +33,9 @@
     <MinimumVisualStudioVersion>12.0</MinimumVisualStudioVersion>
     <Configuration>Debug</Configuration>
     <Platform Condition="'$(Platform)' == ''">Win32</Platform>
-    <RootNamespace>Ice5Lp2k</RootNamespace>
+    <RootNamespace>ice5lp_2k</RootNamespace>
     <WindowsTargetPlatformVersion>$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
+    <ProjectName>ice5lp_2k</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'" Label="Configuration">
@@ -51,6 +52,7 @@
     <KMDF_MINIMUM_VERSION_REQUIRED>
     </KMDF_MINIMUM_VERSION_REQUIRED>
     <_NT_TARGET_VERSION>0xA000001</_NT_TARGET_VERSION>
+    <Driver_SpectreMitigation>false</Driver_SpectreMitigation>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'" Label="Configuration">
     <TargetVersion>Windows10</TargetVersion>
@@ -66,6 +68,7 @@
     <KMDF_MINIMUM_VERSION_REQUIRED>
     </KMDF_MINIMUM_VERSION_REQUIRED>
     <_NT_TARGET_VERSION>0xA000001</_NT_TARGET_VERSION>
+    <Driver_SpectreMitigation>false</Driver_SpectreMitigation>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'" Label="Configuration">
     <TargetVersion>Windows10</TargetVersion>
@@ -81,6 +84,7 @@
     <KMDF_MINIMUM_VERSION_REQUIRED>
     </KMDF_MINIMUM_VERSION_REQUIRED>
     <_NT_TARGET_VERSION>0xA000001</_NT_TARGET_VERSION>
+    <Driver_SpectreMitigation>false</Driver_SpectreMitigation>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'" Label="Configuration">
     <TargetVersion>Windows10</TargetVersion>
@@ -96,6 +100,7 @@
     <KMDF_MINIMUM_VERSION_REQUIRED>
     </KMDF_MINIMUM_VERSION_REQUIRED>
     <_NT_TARGET_VERSION>0xA000001</_NT_TARGET_VERSION>
+    <Driver_SpectreMitigation>false</Driver_SpectreMitigation>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -176,7 +181,7 @@
     <ClInclude Include="include\Trace.h" />
   </ItemGroup>
   <ItemGroup>
-    <Inf Include="Ice5Lp2k.inf" />
+    <Inf Include="ice5lp_2k.inf" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

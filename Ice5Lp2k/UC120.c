@@ -3,74 +3,95 @@
 #include <driver.h>
 #include "UC120.tmh"
 
-NTSTATUS UC120ReportState(PDEVICE_CONTEXT DeviceContext, int MessageType, int Power, int PartnerType, int UsbCurrentType, int Polarity)
+NTSTATUS UC120ReportState(
+    PDEVICE_CONTEXT pDeviceContext,
+    UC120_EVENT MessageType,
+    UC120_PORT_TYPE Power,
+    UC120_PORT_PARTNER_TYPE PartnerType,
+    UC120_ADVERTISED_CURRENT_LEVEL UsbCurrentType,
+    unsigned short Polarity)
 {
-    NTSTATUS status = STATUS_SUCCESS; // r6
-    ULONG count; // r8
-    WDFREQUEST PendingRequest; // [sp+18h] [bp-50h]
-    PUC120_STATE Buffer; // [sp+1Ch] [bp-4Ch]
+    NTSTATUS status = STATUS_SUCCESS;
+    ULONG count;
+    WDFREQUEST PendingRequest;
+    PUC120_NOTIFICATION pAttachInformation;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
-    if (DeviceContext->Calibrated)
+    if (pDeviceContext->Calibrated)
     {
-        status = WdfIoQueueRetrieveNextRequest(DeviceContext->DelayedIoCtlQueue, &PendingRequest);
+        status = WdfIoQueueRetrieveNextRequest(pDeviceContext->DelayedIoCtlQueue, &PendingRequest);
         if (NT_SUCCESS(status))
         {
             do
             {
-                status = WdfCollectionAdd( DeviceContext->DelayedQueryIoctlRequestCol, PendingRequest);
+                status = WdfCollectionAdd(pDeviceContext->DelayedQueryIoctlRequestCol, PendingRequest);
                 if (!NT_SUCCESS(status))
                 {
                     TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "WdfCollectionAdd failed %!STATUS!", status);
                 }
-            } while (NT_SUCCESS(WdfIoQueueRetrieveNextRequest(DeviceContext->DelayedIoCtlQueue, &PendingRequest)));
+            } while (NT_SUCCESS(WdfIoQueueRetrieveNextRequest(pDeviceContext->DelayedIoCtlQueue, &PendingRequest)));
         }
 
-        count = WdfCollectionGetCount(DeviceContext->DelayedQueryIoctlRequestCol);
+        count = WdfCollectionGetCount(pDeviceContext->DelayedQueryIoctlRequestCol);
         if (count > 0)
         {
             do
             {
                 PendingRequest = NULL;
-                PendingRequest = WdfCollectionGetFirstItem(DeviceContext->DelayedQueryIoctlRequestCol);
-                status = WdfRequestRetrieveOutputBuffer(PendingRequest, 20, &Buffer, 0);
+                PendingRequest = WdfCollectionGetFirstItem(pDeviceContext->DelayedQueryIoctlRequestCol);
+                status = WdfRequestRetrieveOutputBuffer(PendingRequest, sizeof(UC120_NOTIFICATION), &pAttachInformation, 0);
                 if (NT_SUCCESS(status))
                 {
-                    RtlZeroMemory(Buffer, 20);
+                    RtlZeroMemory(pAttachInformation, sizeof(UC120_NOTIFICATION));
 
-                    // Param1 is message type
-                    // 0: PD msg
-                    // 1: detach
-                    // 2: current change
-                    Buffer->State0 = MessageType;
+                    pAttachInformation->Event = MessageType;
 
-                    if (MessageType)
+                    if (MessageType == Uc120EventCurrentLevelChange)
                     {
-                        if (MessageType == 2)
-                        {
-                            Buffer->State1 = UsbCurrentType;
-                        }
+                        pAttachInformation->data.CurrentLevelChanged = UsbCurrentType;
                     }
                     else
                     {
-                        Buffer->State1 = Power;
-                        Buffer->State2 = PartnerType;
-                        Buffer->State3 = UsbCurrentType;
-                        Buffer->State4 = Polarity;
+                        pAttachInformation->data.AttachInformation.PortType = Power;
+                        pAttachInformation->data.AttachInformation.PortPartnerType = PartnerType;
+                        pAttachInformation->data.AttachInformation.CurrentLevelInitial = UsbCurrentType;
+                        pAttachInformation->data.AttachInformation.Orientation = Polarity;
                     }
 
-                    WdfRequestCompleteWithInformation(PendingRequest, status, 20);
+                    WdfRequestCompleteWithInformation(PendingRequest, status, sizeof(UC120_NOTIFICATION));
                 }
                 else
                 {
                     WdfRequestComplete(PendingRequest, status);
                 }
 
-                WdfCollectionRemove(DeviceContext->DelayedQueryIoctlRequestCol, PendingRequest);
+                WdfCollectionRemove(pDeviceContext->DelayedQueryIoctlRequestCol, PendingRequest);
                 --count;
             } while (count);
         }
+    }
+
+    switch (MessageType)
+    {
+    case Uc120EventCurrentLevelChange:
+        pDeviceContext->AdvertisedCurrentLevel = UsbCurrentType;
+        break;
+    case Uc120EventDetach:
+        pDeviceContext->Uc120Event = MessageType;
+        pDeviceContext->Uc120PortType = Uc120PortTypeUnknown;
+        pDeviceContext->PortPartnerType = Uc120PortPartnerTypeUnknown;
+        pDeviceContext->AdvertisedCurrentLevel = Uc120AdvertisedCurrentLevelUnknown;
+        pDeviceContext->Orientation = 0;
+        UC120ToggleReg4YetUnknown(pDeviceContext, 1);
+        break;
+    case Uc120EventAttach:
+        pDeviceContext->Uc120Event = MessageType;
+        pDeviceContext->Uc120PortType = Power;
+        pDeviceContext->PortPartnerType = PartnerType;
+        pDeviceContext->Orientation = Polarity;
+        UC120ToggleReg4YetUnknown(pDeviceContext, 0);
+        break;
     }
 
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
@@ -79,7 +100,7 @@ NTSTATUS UC120ReportState(PDEVICE_CONTEXT DeviceContext, int MessageType, int Po
 
 NTSTATUS UC120ToggleReg4YetUnknown(PDEVICE_CONTEXT DeviceContext, UCHAR Bit)
 {
-    NTSTATUS status; // r4
+    NTSTATUS status;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
@@ -96,7 +117,7 @@ NTSTATUS UC120ToggleReg4YetUnknown(PDEVICE_CONTEXT DeviceContext, UCHAR Bit)
 
 NTSTATUS SetVConn(PDEVICE_CONTEXT DeviceContext, UCHAR Enable)
 {
-    NTSTATUS status; // r4
+    NTSTATUS status;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
@@ -124,7 +145,7 @@ exit:
 
 NTSTATUS SetPowerRole(PDEVICE_CONTEXT DeviceContext, UCHAR PowerRole)
 {
-    NTSTATUS status; // r4
+    NTSTATUS status;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
@@ -152,10 +173,10 @@ exit:
 
 void UC120ProcessIncomingPdMessage(PDEVICE_CONTEXT DeviceContext)
 {
-    NTSTATUS status; // r0
-    UCHAR Reg1Content; // r3
-    UCHAR PdMessageSize; // r5
-    WDFREQUEST Request; // [sp+8h] [bp-20h]
+    NTSTATUS status;
+    UCHAR Reg1Content;
+    UCHAR PdMessageSize;
+    WDFREQUEST Request;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
@@ -166,7 +187,7 @@ void UC120ProcessIncomingPdMessage(PDEVICE_CONTEXT DeviceContext)
         PdMessageSize = Reg1Content >> 5;
         if (Reg1Content >> 5 == 6)
         {
-            DeviceContext->InternalState[22] = 6;
+            DeviceContext->PDMessageType = 6;
             KeSetEvent(&DeviceContext->PdEvent, 0, 0);
         }
         else if (PdMessageSize && PdMessageSize != 5 && PdMessageSize != 7)
@@ -183,11 +204,12 @@ void UC120ProcessIncomingPdMessage(PDEVICE_CONTEXT DeviceContext)
                     UC120FulfillIncomingMessage(DeviceContext, Request);
                     if (PdMessageSize == 7)
                     {
-                        DeviceContext->InternalState[22] = 6;
+                        DeviceContext->PDMessageType = 6;
                         KeSetEvent(&DeviceContext->PdEvent, 0, 0);
                     }
                 }
-                if (PdMessageSize == 5) {
+                if (PdMessageSize == 5)
+                {
                     WdfRequestComplete(Request, 0x8000001D);
                 }
             }
@@ -209,17 +231,17 @@ void UC120SynchronizeIncomingMessageSize(PDEVICE_CONTEXT DeviceContext)
 {
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
     UC120SpiRead(&DeviceContext->SpiDevice, 1, &DeviceContext->Register1, 1u);
-    DeviceContext->InternalState[22] = DeviceContext->Register1 >> 5;
+    DeviceContext->PDMessageType = DeviceContext->Register1 >> 5;
     KeSetEvent(&DeviceContext->PdEvent, 0, 0);
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
 }
 
 void UC120FulfillIncomingMessage(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Request)
 {
-    SIZE_T messageSize; // r8
-    PUCHAR pRegisterBuffer; // r6
-    NTSTATUS status; // r4
-    PUCHAR pRequestOutBuffer; // [sp+8h] [bp-90h]
+    SIZE_T messageSize;
+    PUCHAR pRegisterBuffer;
+    NTSTATUS status;
+    PUCHAR pRequestOutBuffer;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
@@ -228,7 +250,7 @@ void UC120FulfillIncomingMessage(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Reque
     if (pRegisterBuffer == NULL)
     {
         TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "ExAllocatePoolWithTag failed");
-        status = 0xC0000017;
+        status = STATUS_NO_MEMORY;
         goto FailRequest;
     }
 
@@ -246,7 +268,8 @@ void UC120FulfillIncomingMessage(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Reque
     FailRequest:
         WdfRequestComplete(Request, status);
         TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
-        if (!pRegisterBuffer) {
+        if (!pRegisterBuffer)
+        {
             return;
         }
         goto FreeReadBuffer;
@@ -264,12 +287,12 @@ NTSTATUS UC120Calibrate(PDEVICE_CONTEXT DeviceContext)
 
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
-    UNICODE_STRING            CalibrationFileString;
-    OBJECT_ATTRIBUTES         CalibrationFileObjectAttribute;
-    HANDLE                    hCalibrationFile;
-    IO_STATUS_BLOCK           CalibrationIoStatusBlock;
-    UCHAR                     CalibrationBlob[UC120_CALIBRATIONFILE_SIZE + 2];
-    LARGE_INTEGER             CalibrationFileByteOffset;
+    UNICODE_STRING CalibrationFileString;
+    OBJECT_ATTRIBUTES CalibrationFileObjectAttribute;
+    HANDLE hCalibrationFile;
+    IO_STATUS_BLOCK CalibrationIoStatusBlock;
+    UCHAR CalibrationBlob[UC120_CALIBRATIONFILE_SIZE + 2];
+    LARGE_INTEGER CalibrationFileByteOffset;
     FILE_STANDARD_INFORMATION CalibrationFileInfo;
     LONGLONG CalibrationFileSize = 0;
     UCHAR SkipCalibration = FALSE;
@@ -281,7 +304,8 @@ NTSTATUS UC120Calibrate(PDEVICE_CONTEXT DeviceContext)
         &CalibrationFileObjectAttribute, &CalibrationFileString,
         OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
 
-    if (KeGetCurrentIrql() != PASSIVE_LEVEL) {
+    if (KeGetCurrentIrql() != PASSIVE_LEVEL)
+    {
         status = STATUS_INVALID_DEVICE_STATE;
         goto Exit;
     }
@@ -291,7 +315,8 @@ NTSTATUS UC120Calibrate(PDEVICE_CONTEXT DeviceContext)
         &CalibrationIoStatusBlock, NULL, FILE_ATTRIBUTE_NORMAL, 0, FILE_OPEN,
         FILE_SYNCHRONOUS_IO_NONALERT, NULL, 0);
 
-    if (!NT_SUCCESS(status)) {
+    if (!NT_SUCCESS(status))
+    {
         TraceEvents(
             TRACE_LEVEL_INFORMATION, TRACE_DRIVER,
             "failed to open calibration file 0x%x, skipping calibration. Is this a "
@@ -301,13 +326,15 @@ NTSTATUS UC120Calibrate(PDEVICE_CONTEXT DeviceContext)
         SkipCalibration = TRUE;
     }
 
-    if (!SkipCalibration) {
+    if (!SkipCalibration)
+    {
         TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "stat calibration file");
         status = ZwQueryInformationFile(
             hCalibrationFile, &CalibrationIoStatusBlock, &CalibrationFileInfo,
             sizeof(CalibrationFileInfo), FileStandardInformation);
 
-        if (!NT_SUCCESS(status)) {
+        if (!NT_SUCCESS(status))
+        {
             TraceEvents(
                 TRACE_LEVEL_INFORMATION, TRACE_DRIVER,
                 "failed to stat calibration file 0x%x", status);
@@ -330,7 +357,8 @@ NTSTATUS UC120Calibrate(PDEVICE_CONTEXT DeviceContext)
             NULL);
 
         ZwClose(hCalibrationFile);
-        if (!NT_SUCCESS(status)) {
+        if (!NT_SUCCESS(status))
+        {
             TraceEvents(
                 TRACE_LEVEL_INFORMATION, TRACE_DRIVER,
                 "failed to read calibration file 0x%x", status);
@@ -338,85 +366,108 @@ NTSTATUS UC120Calibrate(PDEVICE_CONTEXT DeviceContext)
         }
 
         // Now we have the calibration blob, initialize it accordingly
-        if (CalibrationFileSize == 8) {
+        if (CalibrationFileSize == 8)
+        {
             status = UC120SpiWrite(&DeviceContext->SpiDevice, 18, CalibrationBlob + 0, 1);
-            if (!NT_SUCCESS(status)) {
+            if (!NT_SUCCESS(status))
+            {
                 TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
             }
             status = UC120SpiWrite(&DeviceContext->SpiDevice, 19, CalibrationBlob + 1, 1);
-            if (!NT_SUCCESS(status)) {
+            if (!NT_SUCCESS(status))
+            {
                 TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
             }
             status = UC120SpiWrite(&DeviceContext->SpiDevice, 20, CalibrationBlob + 2, 1);
-            if (!NT_SUCCESS(status)) {
+            if (!NT_SUCCESS(status))
+            {
                 TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
             }
             status = UC120SpiWrite(&DeviceContext->SpiDevice, 21, CalibrationBlob + 3, 1);
-            if (!NT_SUCCESS(status)) {
+            if (!NT_SUCCESS(status))
+            {
                 TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
             }
             status = UC120SpiWrite(&DeviceContext->SpiDevice, 22, CalibrationBlob + 4, 1);
-            if (!NT_SUCCESS(status)) {
+            if (!NT_SUCCESS(status))
+            {
                 TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
             }
             status = UC120SpiWrite(&DeviceContext->SpiDevice, 23, CalibrationBlob + 5, 1);
-            if (!NT_SUCCESS(status)) {
+            if (!NT_SUCCESS(status))
+            {
                 TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
             }
             status = UC120SpiWrite(&DeviceContext->SpiDevice, 24, CalibrationBlob + 6, 1);
-            if (!NT_SUCCESS(status)) {
+            if (!NT_SUCCESS(status))
+            {
                 TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
             }
             status = UC120SpiWrite(&DeviceContext->SpiDevice, 25, CalibrationBlob + 7, 1);
-            if (!NT_SUCCESS(status)) {
+            if (!NT_SUCCESS(status))
+            {
                 TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
             }
         }
-        else if (CalibrationFileSize > 8) {
+        else if (CalibrationFileSize > 8)
+        {
             // 0x02 version only
-            if (CalibrationBlob[0] == 0x02) {
+            if (CalibrationBlob[0] == 0x02)
+            {
                 status = UC120SpiWrite(&DeviceContext->SpiDevice, 18, CalibrationBlob + 1 + 0, 1);
-                if (!NT_SUCCESS(status)) {
+                if (!NT_SUCCESS(status))
+                {
                     TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
                 }
                 status = UC120SpiWrite(&DeviceContext->SpiDevice, 19, CalibrationBlob + 1 + 1, 1);
-                if (!NT_SUCCESS(status)) {
+                if (!NT_SUCCESS(status))
+                {
                     TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
                 }
                 status = UC120SpiWrite(&DeviceContext->SpiDevice, 20, CalibrationBlob + 1 + 2, 1);
-                if (!NT_SUCCESS(status)) {
+                if (!NT_SUCCESS(status))
+                {
                     TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
                 }
                 status = UC120SpiWrite(&DeviceContext->SpiDevice, 21, CalibrationBlob + 1 + 3, 1);
-                if (!NT_SUCCESS(status)) {
+                if (!NT_SUCCESS(status))
+                {
                     TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
                 }
                 status = UC120SpiWrite(&DeviceContext->SpiDevice, 26, CalibrationBlob + 1 + 4, 1);
-                if (!NT_SUCCESS(status)) {
+                if (!NT_SUCCESS(status))
+                {
                     TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
                 }
                 status = UC120SpiWrite(&DeviceContext->SpiDevice, 22, CalibrationBlob + 1 + 5, 1);
-                if (!NT_SUCCESS(status)) {
+                if (!NT_SUCCESS(status))
+                {
                     TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
                 }
                 status = UC120SpiWrite(&DeviceContext->SpiDevice, 23, CalibrationBlob + 1 + 6, 1);
-                if (!NT_SUCCESS(status)) {
+                if (!NT_SUCCESS(status))
+                {
                     TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
                 }
                 status = UC120SpiWrite(&DeviceContext->SpiDevice, 24, CalibrationBlob + 1 + 7, 1);
-                if (!NT_SUCCESS(status)) {
+                if (!NT_SUCCESS(status))
+                {
                     TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
                 }
                 status = UC120SpiWrite(&DeviceContext->SpiDevice, 25, CalibrationBlob + 1 + 8, 1);
-                if (!NT_SUCCESS(status)) {
+                if (!NT_SUCCESS(status))
+                {
                     TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
                 }
                 status = UC120SpiWrite(&DeviceContext->SpiDevice, 27, CalibrationBlob + 1 + 9, 1);
-                if (!NT_SUCCESS(status)) {
+                if (!NT_SUCCESS(status))
+                {
                     TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
                 }
             }
-        } else {
+        }
+        else
+        {
             TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "Skipped calibration due to unrecognized file");
         }
     }
@@ -426,36 +477,32 @@ Exit:
     return status;
 }
 
-void UC120IoctlEnableGoodCRC(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Request)
+void UC120PDMessagingEnable(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Request)
 {
-    UCHAR GoodCrcEn; // r2
-    NTSTATUS status; // r4
-    PUCHAR buffer; // [sp+8h] [bp-20h]
+    UCHAR GoodCrcEn;
+    NTSTATUS status;
+    PUC120_PD_MESSAGING pPdMessaging;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
-    status = WdfRequestRetrieveInputBuffer(Request, 4u, &buffer, 0);
+    status = WdfRequestRetrieveInputBuffer(Request, sizeof(UC120_PD_MESSAGING), &pPdMessaging, 0);
     if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "WdfRequestRetrieveInputBuffer failed %!STATUS!", status);
-        goto LABEL_11;
+        goto error;
     }
 
-    if (*buffer)
+    switch (*pPdMessaging)
     {
-        if (*buffer != 1)
-        {
-            status = 0xC000000D;
-        LABEL_11:
-            TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
-            WdfRequestComplete(Request, status);
-            return;
-        }
-        GoodCrcEn = 1;
-    }
-    else
-    {
+    case Uc120PdMessagingDisabled:
         GoodCrcEn = 0;
+        break;
+    case Uc120PdMessagingEnabled:
+        GoodCrcEn = 1;
+        break;
+    default:
+        status = STATUS_INVALID_PARAMETER;
+        goto error;
     }
 
     DeviceContext->Register4 = DeviceContext->Register4 & 0x7F | (GoodCrcEn << 7);
@@ -465,13 +512,20 @@ void UC120IoctlEnableGoodCRC(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Request)
         TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
     }
 
-    WdfRequestCompleteWithInformation(Request, status, 4u);
+    WdfRequestCompleteWithInformation(Request, status, sizeof(UC120_PD_MESSAGING));
+    goto exit;
+
+error:
+    WdfRequestComplete(Request, status);
+
+exit:
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
+    return;
 }
 
 void UC120IoctlExecuteHardReset(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Request)
 {
-    NTSTATUS status; // r5
+    NTSTATUS status;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
@@ -486,21 +540,22 @@ void UC120IoctlExecuteHardReset(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Reques
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
 }
 
-void UC120IoctlIsCableConnected(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Request)
+void UC120GetCableDetectionState(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Request)
 {
-    NTSTATUS status; // r6
-    unsigned int* buffer; // [sp+8h] [bp-38h]
+    NTSTATUS status;
+    PUC120_ATTACH_INFORMATION pAttachInformation;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
-    status = WdfRequestRetrieveOutputBuffer(Request, 0x10u, &buffer, 0);
+    status = WdfRequestRetrieveOutputBuffer(Request, sizeof(UC120_ATTACH_INFORMATION), &pAttachInformation, 0);
     if (NT_SUCCESS(status))
     {
-        buffer[0] = DeviceContext->InternalState[6];
-        buffer[1] = DeviceContext->InternalState[10];
-        buffer[2] = DeviceContext->InternalState[14];
-        buffer[3] = DeviceContext->InternalState[18];
-        WdfRequestCompleteWithInformation(Request, status, 0x10u);
+        pAttachInformation->PortType = DeviceContext->Uc120PortType;
+        pAttachInformation->PortPartnerType = DeviceContext->PortPartnerType;
+        pAttachInformation->CurrentLevelInitial = DeviceContext->AdvertisedCurrentLevel;
+        pAttachInformation->Orientation = DeviceContext->Orientation;
+
+        WdfRequestCompleteWithInformation(Request, status, sizeof(UC120_ATTACH_INFORMATION));
     }
     else
     {
@@ -511,15 +566,15 @@ void UC120IoctlIsCableConnected(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Reques
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
 }
 
-void UC120IoctlReportNewDataRole(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Request)
+void UC120SetPortDataRole(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Request)
 {
-    UCHAR Role; // r2
-    NTSTATUS status; // r4
-    PUCHAR buffer; // [sp+8h] [bp-20h]
+    UCHAR Role;
+    NTSTATUS status;
+    PUC120_PORT_TYPE buffer;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
-    status = WdfRequestRetrieveInputBuffer(Request, 4u, &buffer, 0);
+    status = WdfRequestRetrieveInputBuffer(Request, sizeof(UC120_PORT_TYPE), &buffer, 0);
     if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "WdfRequestRetrieveInputBuffer failed %!STATUS!", status);
@@ -528,9 +583,9 @@ void UC120IoctlReportNewDataRole(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Reque
 
     if (*buffer)
     {
-        if (*buffer != 1)
+        if (*buffer != Uc120PortTypeUfp)
         {
-            status = 0xC000000D;
+            status = STATUS_INVALID_PARAMETER;
         LABEL_11:
             TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
             WdfRequestComplete(Request, status);
@@ -550,52 +605,52 @@ void UC120IoctlReportNewDataRole(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Reque
         TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
     }
 
-    WdfRequestCompleteWithInformation(Request, status, 4u);
+    WdfRequestCompleteWithInformation(Request, status, sizeof(UC120_PORT_TYPE));
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
 }
 
 void UC120IoctlReportNewPowerRole(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Request)
 {
-    NTSTATUS status; // r4
-    UCHAR incomingRequest; // r1
-    PUCHAR buffer; // [sp+8h] [bp-20h]
+    NTSTATUS status;
+    UCHAR incomingRequest;
+    PUC120_PORT_POWER_ROLE buffer;
 
     UCHAR v12;
     UCHAR v13;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
-    if (DeviceContext->InternalState[2])
+    if (DeviceContext->Uc120Event)
     {
-        status = 0xC0000184;
-        goto LABEL_53;
+        status = STATUS_INVALID_DEVICE_STATE;
+        goto exit;
     }
 
-    status = WdfRequestRetrieveInputBuffer(Request, 4u, &buffer, 0);
+    status = WdfRequestRetrieveInputBuffer(Request, sizeof(UC120_PORT_POWER_ROLE), &buffer, 0);
     if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "WdfRequestRetrieveInputBuffer failed %!STATUS!", status);
-        goto LABEL_53;
+        goto exit;
     }
 
     status = UC120SpiRead(&DeviceContext->SpiDevice, 5, &DeviceContext->Register5, 1u);
     if (status < 0)
     {
         TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiRead failed %!STATUS!", status);
-        goto LABEL_53;
+        goto exit;
     }
 
     incomingRequest = *buffer;
     if (!*buffer && !(DeviceContext->Register5 & 1))
     {
-        goto LABEL_53;
+        goto exit;
     }
 
     if (incomingRequest == 1)
     {
         if (DeviceContext->Register5 & 1)
         {
-            goto LABEL_53;
+            goto exit;
         }
         v12 = 1;
         v13 = 0;
@@ -608,15 +663,15 @@ void UC120IoctlReportNewPowerRole(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Requ
             status = UC120SpiWrite(&DeviceContext->SpiDevice, 5, &DeviceContext->Register5, 1);
             if (NT_SUCCESS(status))
             {
-                goto LABEL_53;
+                goto exit;
             }
         }
         else
         {
             TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
-            goto LABEL_53;
+            goto exit;
         }
-        goto LABEL_53;
+        goto exit;
     }
 
     if (!incomingRequest)
@@ -626,57 +681,57 @@ void UC120IoctlReportNewPowerRole(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Requ
         goto LABEL_38;
     }
 
-    status = 0xC000000D;
-LABEL_53:
+    status = STATUS_INVALID_PARAMETER;
+exit:
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
     WdfRequestComplete(Request, status);
 }
 
 void UC120IoctlSetVConnRoleSwitch(PDEVICE_CONTEXT DeviceContext, WDFREQUEST Request)
 {
-    NTSTATUS status; // r4
-    UCHAR incomingRequest; // r2
-    PUCHAR buffer; // [sp+8h] [bp-20h]
+    NTSTATUS status;
+    UC120_PORT_VCONN_ROLE incomingRequest;
+    PUC120_PORT_VCONN_ROLE buffer;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
-    if (DeviceContext->InternalState[2])
+    if (DeviceContext->Uc120Event)
     {
-        status = 0xC0000184;
-        goto LABEL_39;
+        status = STATUS_INVALID_DEVICE_STATE;
+        goto exit;
     }
 
-    status = WdfRequestRetrieveInputBuffer(Request, 4u, &buffer, 0);
+    status = WdfRequestRetrieveInputBuffer(Request, sizeof(UC120_PORT_VCONN_ROLE), &buffer, 0);
     if (!NT_SUCCESS(status))
     {
-        goto LABEL_39;
+        goto exit;
     }
 
-    if (*buffer && *buffer != 1)
+    if (*buffer > Uc120PortPowerVconnSource)
     {
-        status = 0xC000000D;
-        goto LABEL_39;
+        status = STATUS_INVALID_PARAMETER;
+        goto exit;
     }
 
     status = UC120SpiRead(&DeviceContext->SpiDevice, 5, &DeviceContext->Register5, 1u);
     if (!NT_SUCCESS(status))
     {
-        goto LABEL_39;
+        goto exit;
     }
 
     incomingRequest = *buffer;
-    if (!*buffer && !(DeviceContext->Register5 & 0x20))
+    if (*buffer == Uc120PortPowerVconnSink && !(DeviceContext->Register5 & 0x20))
     {
-        goto LABEL_39;
+        goto exit;
     }
 
-    if (incomingRequest != 1 || !(DeviceContext->Register5 & 0x20))
+    if (incomingRequest != Uc120PortPowerVconnSource || !(DeviceContext->Register5 & 0x20))
     {
-        status = SetVConn(DeviceContext, incomingRequest != 0);
-        goto LABEL_39;
+        status = SetVConn(DeviceContext, incomingRequest != Uc120PortPowerVconnSink);
+        goto exit;
     }
 
-LABEL_39:
+exit:
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
     WdfRequestComplete(Request, status);
 }

@@ -56,7 +56,7 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <Inf Include="Ice5Lp2k.inf">
+    <Inf Include="ice5lp_2k.inf">
       <Filter>Driver Files</Filter>
     </Inf>
   </ItemGroup>

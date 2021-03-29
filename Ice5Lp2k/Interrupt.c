@@ -5,387 +5,371 @@
 
 BOOLEAN UC120InterruptIsr(WDFINTERRUPT Interrupt, ULONG MessageID)
 {
-    WDFDEVICE Device;
-    PDEVICE_CONTEXT pDeviceContext;
-    NTSTATUS status;
+	WDFDEVICE Device;
+	PDEVICE_CONTEXT pDeviceContext;
+	NTSTATUS status;
 
-    UNREFERENCED_PARAMETER(MessageID);
-    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
+	UNREFERENCED_PARAMETER(MessageID);
+	TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
-    Device = WdfInterruptGetDevice(Interrupt);
-    pDeviceContext = DeviceGetContext(Device);
+	Device = WdfInterruptGetDevice(Interrupt);
+	pDeviceContext = DeviceGetContext(Device);
 
-    WdfWaitLockAcquire(pDeviceContext->DeviceWaitLock, NULL);
+	WdfWaitLockAcquire(pDeviceContext->DeviceWaitLock, NULL);
 
-    status = UC120SpiRead(&pDeviceContext->SpiDevice, 2, &pDeviceContext->Register2, 1);
-    if (!NT_SUCCESS(status)) {
-        TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiRead failed %!STATUS!", status);
-        pDeviceContext->Register2 = 0xff;
-    }
-    else {
-        UC120InterruptIsrInternal(pDeviceContext);
-    }
+	status = UC120SpiRead(&pDeviceContext->SpiDevice, 2, &pDeviceContext->Register2, 1);
+	if (!NT_SUCCESS(status))
+	{
+		TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiRead failed %!STATUS!", status);
+		pDeviceContext->Register2 = 0xff;
+	}
+	else
+	{
+		UC120InterruptIsrInternal(pDeviceContext);
+	}
 
-    pDeviceContext->Register2 = 0xFFu;
-    status = UC120SpiWrite(&pDeviceContext->SpiDevice, 2, &pDeviceContext->Register2, 1);
-    if (!NT_SUCCESS(status)) {
-        TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiRead failed %!STATUS!", status);
-    }
+	pDeviceContext->Register2 = 0xFFu;
+	status = UC120SpiWrite(&pDeviceContext->SpiDevice, 2, &pDeviceContext->Register2, 1);
+	if (!NT_SUCCESS(status))
+	{
+		TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiRead failed %!STATUS!", status);
+	}
 
-    WdfWaitLockRelease(pDeviceContext->DeviceWaitLock);
-    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
-    return TRUE;
+	WdfWaitLockRelease(pDeviceContext->DeviceWaitLock);
+	TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
+	return TRUE;
 }
 
 void UC120InterruptIsrInternal(PDEVICE_CONTEXT DeviceContext)
 {
-    NTSTATUS status; // r0
-    UCHAR Role; // r7
-    UCHAR Reg7Value; // r1
-    UCHAR Type; // r8
-    UCHAR CablePolarity; // r3
-    UCHAR Polarity; // r10
-    UCHAR CableType; // r3
-    UCHAR Power; // r7
-    UCHAR Current; // r1
-    UCHAR CurrentChanged; // r6
+	NTSTATUS status;
+	UCHAR Role;
+	UCHAR Reg7Value;
+	unsigned short Polarity;
+	UCHAR CableType;
+	UC120_ADVERTISED_CURRENT_LEVEL Current;
+	UCHAR CurrentChanged;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
+	TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
-    if (DeviceContext->Register2 & 0xFC)
-    {
-        status = UC120SpiRead(&DeviceContext->SpiDevice, 7, &DeviceContext->Register7, 1u);
-        if (!NT_SUCCESS(status))
-        {
-            TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiRead failed %!STATUS!", status);
-            TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
-            return;
-        }
+	if (DeviceContext->Register2 & 0xFC)
+	{
+		status = UC120SpiRead(&DeviceContext->SpiDevice, 7, &DeviceContext->Register7, 1u);
+		if (!NT_SUCCESS(status))
+		{
+			TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiRead failed %!STATUS!", status);
+			TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
+			return;
+		}
 
-        Role = (DeviceContext->Register2 & 0x3Cu) >> 2;
-        if (Role)
-        {
-            Reg7Value = DeviceContext->Register7;
-            // It is actually current. IDA think UcmType is a __int64 and set the higher 32bits.
-            Current = 3;
+		Role = (DeviceContext->Register2 & 0x3Cu) >> 2;
+		if (Role)
+		{
+			Reg7Value = DeviceContext->Register7;
 
-            if (Reg7Value & 0x40) {
-                CablePolarity = 2;
-            }
-            else {
-                CablePolarity = 1;
-            }
+			Polarity = (Reg7Value & 0x40) ? 2 : 1; // 1: EnumMuxStateUSBStraight, 2: EnumMuxStateUSBTwisted
+			CableType = (Reg7Value >> 4) & 3;
 
-            Polarity = CablePolarity;
-            CableType = (Reg7Value >> 4) & 3;
+			switch (CableType)
+			{
+			case 1:
+				Current = Uc120AdvertisedCurrentLevelDefaultUsb;
+				break;
+			case 2:
+				Current = Uc120AdvertisedCurrentLevelPower15;
+				break;
+			case 3:
+				Current = Uc120AdvertisedCurrentLevelPower30;
+				break;
+			default:
+				Current = Uc120AdvertisedCurrentLevelNotAvailable;
+				break;
+			}
 
-            if (CableType)
-            {
-                switch (CableType)
-                {
-                case 1:
-                    Current = 0;
-                    break;
-                case 2:
-                    Current = 1;
-                    break;
-                case 3:
-                    Current = 2;
-                    break;
-                }
-            }
-            else
-            {
-                Current = 3;
-            }
+			switch (Role)
+			{
+			case 1u:
+			case 4u:
+				// Detached
+				if (DeviceContext->Uc120Event != Uc120EventDetach)
+				{
+					UC120ReportState(DeviceContext, Uc120EventDetach, Uc120PortTypeUnknown, Uc120PortPartnerTypeUnknown, Uc120AdvertisedCurrentLevelUnknown, 0);
 
-            switch (Role)
-            {
-            case 1u:
-            case 4u:
-                if (DeviceContext->InternalState[2] != 1)
-                {
-                    // Cable detach, world reset
-                    UC120ReportState(DeviceContext, 1, 2, 7, 4, 0);
-                    DeviceContext->InternalState[2] = 1;
-                    DeviceContext->InternalState[6] = 2;
-                    DeviceContext->InternalState[10] = 7;
-                    DeviceContext->InternalState[14] = 4;
-                    DeviceContext->InternalState[18] = 0;
-                    UC120ToggleReg4YetUnknown(DeviceContext, 1);
-                    SetVConn(DeviceContext, 0);
-                    SetPowerRole(DeviceContext, 0);
-                }
-                break;
-            case 2u:
-                Power = 0;
-                Type = 1;
-                goto LABEL_40;
-            case 3u:
-                Power = 0;
-                Type = 3;
-                goto LABEL_40;
-            case 5u:
-                Type = 0;
-                Power = 1;
-                goto LABEL_41;
-            case 6u:
-                Type = 5;
-                goto LABEL_37;
-            case 7u:
-                Type = 4;
-            LABEL_37:
-                Power = 0;
-                Polarity = 0;
-                goto LABEL_41;
-            case 8u:
-                Power = 1;
-                Type = 6;
-            LABEL_40:
-                SetVConn(DeviceContext, 1);
-                SetPowerRole(DeviceContext, 1);
-            LABEL_41:
-                if (DeviceContext->InternalState[2])
-                {
-                    UC120ReportState(DeviceContext, 0, Power, Type, Current, Polarity);
-                    DeviceContext->InternalState[2] = 0;
-                    DeviceContext->InternalState[6] = Power;
-                    DeviceContext->InternalState[10] = Type;
-                    DeviceContext->InternalState[14] = Current;
-                    DeviceContext->InternalState[18] = Polarity;
-                    UC120ToggleReg4YetUnknown(DeviceContext, 0);
-                }
-                break;
-            default:
-                break;
-            }
-        }
-        CurrentChanged = DeviceContext->Register2 >> 6;
-        if (CurrentChanged)
-        {
-            Current = 4;
-            switch (CurrentChanged)
-            {
-            case 1u:
-                // UcmTypeCCurrentDefaultUsb
-                Current = 0;
-                break;
-            case 2u:
-                // UcmTypeCCurrent1500mA
-                Current = 1;
-                break;
-            case 3u:
-                // UcmTypeCCurrent3000mA
-                Current = 2;
-                break;
-            }
-            if (Current == DeviceContext->InternalState[14])
-            {
-                TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
-                return;
-            }
-            // result = sub_406D0C(v1, 2, 2, 7);
-            UC120ReportState(DeviceContext, 2, 2, 7, Current, Current);
-            DeviceContext->InternalState[14] = Current;
-        }
-    }
-    if (DeviceContext->Register2 & 2) {
-        UC120ProcessIncomingPdMessage(DeviceContext);
-    }
-    if (DeviceContext->Register2 & 1) {
-        UC120SynchronizeIncomingMessageSize(DeviceContext);
-    }
+					SetVConn(DeviceContext, 0);
+					SetPowerRole(DeviceContext, 0);
+				}
+				break;
+			case 2u:
+				SetVConn(DeviceContext, 1);
+				SetPowerRole(DeviceContext, 1);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
+				// USB Host, VBUS ON
+				if (DeviceContext->Uc120Event != Uc120EventAttach)
+				{
+					UC120ReportState(DeviceContext, Uc120EventAttach, Uc120PortTypeDfp, Uc120PortPartnerTypeUfp, Current, Polarity);
+				}
+				break;
+			case 3u:
+				SetVConn(DeviceContext, 1);
+				SetPowerRole(DeviceContext, 1);
+
+				// USB Host, VBUS OFF
+				if (DeviceContext->Uc120Event != Uc120EventAttach)
+				{
+					UC120ReportState(DeviceContext, Uc120EventAttach, Uc120PortTypeDfp, Uc120PortPartnerTypePoweredCableUfp, Current, Polarity);
+				}
+				break;
+			case 5u:
+				// USB FN, VBUS OFF
+				if (DeviceContext->Uc120Event != Uc120EventAttach)
+				{
+					UC120ReportState(DeviceContext, Uc120EventAttach, Uc120PortTypeUfp, Uc120PortPartnerTypeDfp, Current, Polarity);
+				}
+				break;
+			case 6u:
+				// USB Host, VBUS ON
+				if (DeviceContext->Uc120Event != Uc120EventAttach)
+				{
+					UC120ReportState(DeviceContext, Uc120EventAttach, Uc120PortTypeDfp, Uc120PortPartnerTypeAudioAccessory, Current, 0);
+				}
+				break;
+			case 7u:
+				// USB Host, VBUS ON
+				if (DeviceContext->Uc120Event != Uc120EventAttach)
+				{
+					UC120ReportState(DeviceContext, Uc120EventAttach, Uc120PortTypeDfp, Uc120PortPartnerTypeDebugAccessory, Current, 0);
+				}
+				break;
+			case 8u:
+				SetVConn(DeviceContext, 1);
+				SetPowerRole(DeviceContext, 1);
+
+				// USB Host, VBUS OFF
+				if (DeviceContext->Uc120Event != Uc120EventAttach)
+				{
+					UC120ReportState(DeviceContext, Uc120EventAttach, Uc120PortTypeUfp, Uc120PortPartnerTypePoweredAccessory, Current, Polarity);
+				}
+				break;
+			default:
+				break;
+			}
+		}
+
+		CurrentChanged = DeviceContext->Register2 >> 6;
+		if (CurrentChanged)
+		{
+			switch (CurrentChanged)
+			{
+			case 1:
+				Current = Uc120AdvertisedCurrentLevelDefaultUsb;
+				break;
+			case 2:
+				Current = Uc120AdvertisedCurrentLevelPower15;
+				break;
+			case 3:
+				Current = Uc120AdvertisedCurrentLevelPower30;
+				break;
+			default:
+				Current = Uc120AdvertisedCurrentLevelUnknown;
+				break;
+			}
+
+			if (Current == DeviceContext->AdvertisedCurrentLevel)
+			{
+				TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
+				return;
+			}
+
+			UC120ReportState(DeviceContext, Uc120EventCurrentLevelChange, Uc120PortTypeUnknown, Uc120PortPartnerTypeUnknown, Current, Current);
+		}
+	}
+
+	if (DeviceContext->Register2 & 2)
+	{
+		UC120ProcessIncomingPdMessage(DeviceContext);
+	}
+	if (DeviceContext->Register2 & 1)
+	{
+		UC120SynchronizeIncomingMessageSize(DeviceContext);
+	}
+
+	TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
 }
 
 BOOLEAN PlugdetInterruptIsr(WDFINTERRUPT Interrupt, ULONG MessageId)
 {
-    UNREFERENCED_PARAMETER(Interrupt);
-    UNREFERENCED_PARAMETER(MessageId);
-    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
+	UNREFERENCED_PARAMETER(Interrupt);
+	UNREFERENCED_PARAMETER(MessageId);
+	TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
-    return TRUE;
+	TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
+	return TRUE;
 }
 
 BOOLEAN PmicInterrupt1Isr(WDFINTERRUPT Interrupt, ULONG MessageId)
 {
-    WDFDEVICE Device;
-    NTSTATUS status;
-    PDEVICE_CONTEXT pDeviceContext;
+	WDFDEVICE Device;
+	NTSTATUS status;
+	PDEVICE_CONTEXT pDeviceContext;
 
-    UNREFERENCED_PARAMETER(MessageId);
-    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
+	UNREFERENCED_PARAMETER(MessageId);
+	TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
-    Device = WdfInterruptGetDevice(Interrupt);
-    pDeviceContext = DeviceGetContext(Device);
+	Device = WdfInterruptGetDevice(Interrupt);
+	pDeviceContext = DeviceGetContext(Device);
 
-    WdfWaitLockAcquire(pDeviceContext->DeviceWaitLock, 0);
-    pDeviceContext->Register5 |= 0x40u;
-    status = UC120SpiWrite(&pDeviceContext->SpiDevice, 5, &pDeviceContext->Register5, 1);
-    if (!NT_SUCCESS(status))
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
-    }
+	WdfWaitLockAcquire(pDeviceContext->DeviceWaitLock, 0);
+	pDeviceContext->Register5 |= 0x40u;
+	status = UC120SpiWrite(&pDeviceContext->SpiDevice, 5, &pDeviceContext->Register5, 1);
+	if (!NT_SUCCESS(status))
+	{
+		TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
+	}
 
-    WdfWaitLockRelease(pDeviceContext->DeviceWaitLock);
-    WdfInterruptQueueWorkItemForIsr(Interrupt);
+	WdfWaitLockRelease(pDeviceContext->DeviceWaitLock);
+	WdfInterruptQueueWorkItemForIsr(Interrupt);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
-    return TRUE;
+	TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
+	return TRUE;
 }
 
 BOOLEAN PmicInterrupt2Isr(WDFINTERRUPT Interrupt, ULONG MessageId)
 {
-    WDFDEVICE Device; // r0
-    NTSTATUS status; // r0
-    UCHAR RegisterValue; // [sp+8h] [bp-18h]
-    PDEVICE_CONTEXT pDeviceContext;
+	WDFDEVICE Device;
+	NTSTATUS status;
+	UCHAR RegisterValue;
+	PDEVICE_CONTEXT pDeviceContext;
 
-    UNREFERENCED_PARAMETER(MessageId);
-    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
+	UNREFERENCED_PARAMETER(MessageId);
+	TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
-    Device = WdfInterruptGetDevice(Interrupt);
-    pDeviceContext = DeviceGetContext(Device);
+	Device = WdfInterruptGetDevice(Interrupt);
+	pDeviceContext = DeviceGetContext(Device);
 
-    WdfWaitLockAcquire(pDeviceContext->DeviceWaitLock, 0);
-    RegisterValue = 0;
+	WdfWaitLockAcquire(pDeviceContext->DeviceWaitLock, 0);
+	RegisterValue = 0;
 
-    if (UC120SpiRead(&pDeviceContext->SpiDevice, 5, &RegisterValue, 1u) < 0 || RegisterValue & 0x40)
-    {
-        pDeviceContext->Register5 &= 0xBFu;
-        status = UC120SpiWrite(&pDeviceContext->SpiDevice, 5, &pDeviceContext->Register5, 1);
-        if (!NT_SUCCESS(status))
-        {
-            TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
-        }
+	if (UC120SpiRead(&pDeviceContext->SpiDevice, 5, &RegisterValue, 1u) < 0 || RegisterValue & 0x40)
+	{
+		pDeviceContext->Register5 &= 0xBFu;
+		status = UC120SpiWrite(&pDeviceContext->SpiDevice, 5, &pDeviceContext->Register5, 1);
+		if (!NT_SUCCESS(status))
+		{
+			TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
+		}
 
-        WdfWaitLockRelease(pDeviceContext->DeviceWaitLock);
+		WdfWaitLockRelease(pDeviceContext->DeviceWaitLock);
 
-        // Cable detach
-        UC120ReportState(pDeviceContext, 1, 2, 7, 4, 0);
-        pDeviceContext->InternalState[10] = 7;
-        pDeviceContext->InternalState[14] = 4;
-        pDeviceContext->InternalState[2] = 1;
-        pDeviceContext->InternalState[6] = 2;
-        pDeviceContext->InternalState[18] = 0;
+		// Cable detach
+		UC120ReportState(pDeviceContext, Uc120EventDetach, Uc120PortTypeUnknown, Uc120PortPartnerTypeUnknown, Uc120AdvertisedCurrentLevelUnknown, 0);
+	}
+	else
+	{
+		WdfWaitLockRelease(pDeviceContext->DeviceWaitLock);
+	}
 
-        UC120ToggleReg4YetUnknown(pDeviceContext, 1);
-    }
-    else
-    {
-        WdfWaitLockRelease(pDeviceContext->DeviceWaitLock);
-    }
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
-    return TRUE;
+	TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
+	return TRUE;
 }
 
 void PmicInterrupt1WorkItem(WDFINTERRUPT Interrupt, WDFOBJECT AssociatedObject)
 {
-    WDFDEVICE Device; // r0
-    PDEVICE_CONTEXT pDeviceContext;
-    LARGE_INTEGER Delay; // [sp+8h] [bp-18h]
+	WDFDEVICE Device;
+	PDEVICE_CONTEXT pDeviceContext;
+	LARGE_INTEGER Delay;
 
-    UNREFERENCED_PARAMETER(AssociatedObject);
-    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
+	UNREFERENCED_PARAMETER(AssociatedObject);
+	TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
-    Device = WdfInterruptGetDevice(Interrupt);
-    pDeviceContext = DeviceGetContext(Device);
+	Device = WdfInterruptGetDevice(Interrupt);
+	pDeviceContext = DeviceGetContext(Device);
 
-    Delay.QuadPart = 0xFFFFFFFFFFB3B4C0;
-    KeDelayExecutionThread(0, 0, &Delay);
+	Delay.QuadPart = 0xFFFFFFFFFFB3B4C0;
+	KeDelayExecutionThread(0, 0, &Delay);
 
-    if (pDeviceContext->InternalState[2] == 1 && pDeviceContext->Register5 & 0x40)
-    {
-        UC120ReportState(pDeviceContext, 0, 0, 1, 0, 0);
-        pDeviceContext->InternalState[18] = 0;
-        pDeviceContext->InternalState[10] = 0;
-        pDeviceContext->InternalState[14] = 0;
-        pDeviceContext->InternalState[6] = 1;
-    }
+	if (pDeviceContext->Uc120Event == Uc120EventDetach && pDeviceContext->Register5 & 0x40)
+	{
+		UC120ReportState(pDeviceContext, Uc120EventAttach, Uc120PortTypeDfp, Uc120PortPartnerTypeUfp, Uc120AdvertisedCurrentLevelDefaultUsb, 0);
+	}
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
+	TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
 }
 
 NTSTATUS UC120InterruptEnable(WDFINTERRUPT Interrupt, WDFDEVICE AssociatedDevice)
 {
-    WDFDEVICE Device; // r0
-    PDEVICE_CONTEXT pDeviceContext; // r0
-    NTSTATUS status; // r5
+	WDFDEVICE Device;
+	PDEVICE_CONTEXT pDeviceContext;
+	NTSTATUS status;
 
-    UNREFERENCED_PARAMETER(AssociatedDevice);
-    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
+	UNREFERENCED_PARAMETER(AssociatedDevice);
+	TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
-    Device = WdfInterruptGetDevice(Interrupt);
-    pDeviceContext = DeviceGetContext(Device);
-    pDeviceContext->Register2 = 0xFFu;
-    status = UC120SpiWrite(&pDeviceContext->SpiDevice, 2, &pDeviceContext->Register2, 1);
-    if (NT_SUCCESS(status))
-    {
-        pDeviceContext->Register3 = 0xFFu;
-        status = UC120SpiWrite(&pDeviceContext->SpiDevice, 3, &pDeviceContext->Register3, 1);
-        if (NT_SUCCESS(status))
-        {
-            pDeviceContext->Register4 |= 1u;
-            status = UC120SpiWrite(&pDeviceContext->SpiDevice, 4, &pDeviceContext->Register4, 1);
-            if (NT_SUCCESS(status))
-            {
-                pDeviceContext->Register5 &= 0x7Fu;
-                status = UC120SpiWrite(&pDeviceContext->SpiDevice, 5, &pDeviceContext->Register5, 1);
-                if (NT_SUCCESS(status))
-                {
-                    UC120SpiRead(&pDeviceContext->SpiDevice, 2, &pDeviceContext->Register2, 1u);
-                    status = UC120SpiRead(&pDeviceContext->SpiDevice, 7, &pDeviceContext->Register7, 1u);
-                    if (!NT_SUCCESS(status))
-                    {
-                        TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiRead failed %!STATUS!", status);
-                    }
-                }
-                else
-                {
-                    TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
-                }
-            }
-            else
-            {
-                TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
-            }
-        }
-        else
-        {
-            TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
-        }
-    }
-    else
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
-    }
+	Device = WdfInterruptGetDevice(Interrupt);
+	pDeviceContext = DeviceGetContext(Device);
+	pDeviceContext->Register2 = 0xFFu;
+	status = UC120SpiWrite(&pDeviceContext->SpiDevice, 2, &pDeviceContext->Register2, 1);
+	if (!NT_SUCCESS(status))
+	{
+		TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
+		goto exit;
+	}
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
-    return status;
+	pDeviceContext->Register3 = 0xFFu;
+	status = UC120SpiWrite(&pDeviceContext->SpiDevice, 3, &pDeviceContext->Register3, 1);
+	if (!NT_SUCCESS(status))
+	{
+		TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
+		goto exit;
+	}
+
+	pDeviceContext->Register4 |= 1u;
+	status = UC120SpiWrite(&pDeviceContext->SpiDevice, 4, &pDeviceContext->Register4, 1);
+	if (!NT_SUCCESS(status))
+	{
+		TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
+		goto exit;
+	}
+
+	pDeviceContext->Register5 &= 0x7Fu;
+	status = UC120SpiWrite(&pDeviceContext->SpiDevice, 5, &pDeviceContext->Register5, 1);
+	if (!NT_SUCCESS(status))
+	{
+		TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
+		goto exit;
+	}
+
+	UC120SpiRead(&pDeviceContext->SpiDevice, 2, &pDeviceContext->Register2, 1u);
+	status = UC120SpiRead(&pDeviceContext->SpiDevice, 7, &pDeviceContext->Register7, 1u);
+	if (!NT_SUCCESS(status))
+	{
+		TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiRead failed %!STATUS!", status);
+		goto exit;
+	}
+
+exit:
+	TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
+	return status;
 }
 
 NTSTATUS UC120InterruptDisable(WDFINTERRUPT Interrupt, WDFDEVICE AssociatedDevice)
 {
-    WDFDEVICE Device; // r0
-    PDEVICE_CONTEXT pDeviceContext; // r0
-    NTSTATUS status; // r4
+	WDFDEVICE Device;
+	PDEVICE_CONTEXT pDeviceContext;
+	NTSTATUS status;
 
-    UNREFERENCED_PARAMETER(AssociatedDevice);
-    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
+	UNREFERENCED_PARAMETER(AssociatedDevice);
+	TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
-    Device = WdfInterruptGetDevice(Interrupt);
-    pDeviceContext = DeviceGetContext(Device);
+	Device = WdfInterruptGetDevice(Interrupt);
+	pDeviceContext = DeviceGetContext(Device);
 
-    pDeviceContext->Register4 &= 0xFEu;
-    status = UC120SpiWrite(&pDeviceContext->SpiDevice, 4, &pDeviceContext->Register4, 1);
-    if (!NT_SUCCESS(status))
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
-    }
+	pDeviceContext->Register4 &= 0xFEu;
+	status = UC120SpiWrite(&pDeviceContext->SpiDevice, 4, &pDeviceContext->Register4, 1);
+	if (!NT_SUCCESS(status))
+	{
+		TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
+	}
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
-    return status;
+	TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
+	return status;
 }
