@@ -47,16 +47,19 @@ NTSTATUS UC120ReportState(
 
                     pAttachInformation->Event = MessageType;
 
-                    if (MessageType == Uc120EventCurrentLevelChange)
+                    switch (MessageType)
                     {
-                        pAttachInformation->data.CurrentLevelChanged = UsbCurrentType;
-                    }
-                    else
-                    {
-                        pAttachInformation->data.AttachInformation.PortType = Power;
-                        pAttachInformation->data.AttachInformation.PortPartnerType = PartnerType;
-                        pAttachInformation->data.AttachInformation.CurrentLevelInitial = UsbCurrentType;
-                        pAttachInformation->data.AttachInformation.Orientation = Polarity;
+                        case Uc120EventCurrentLevelChange:
+                            pAttachInformation->data.CurrentLevelChanged = UsbCurrentType;
+                            break;
+                        case Uc120EventDetach:
+                            break;
+                        case Uc120EventAttach:
+                            pAttachInformation->data.AttachInformation.PortType = Power;
+                            pAttachInformation->data.AttachInformation.PortPartnerType = PartnerType;
+                            pAttachInformation->data.AttachInformation.CurrentLevelInitial = UsbCurrentType;
+                            pAttachInformation->data.AttachInformation.Orientation = Polarity;
+                            break;
                     }
 
                     WdfRequestCompleteWithInformation(PendingRequest, status, sizeof(UC120_NOTIFICATION));
@@ -70,28 +73,6 @@ NTSTATUS UC120ReportState(
                 --count;
             } while (count);
         }
-    }
-
-    switch (MessageType)
-    {
-    case Uc120EventCurrentLevelChange:
-        pDeviceContext->AdvertisedCurrentLevel = UsbCurrentType;
-        break;
-    case Uc120EventDetach:
-        pDeviceContext->Uc120Event = MessageType;
-        pDeviceContext->Uc120PortType = Uc120PortTypeUnknown;
-        pDeviceContext->PortPartnerType = Uc120PortPartnerTypeUnknown;
-        pDeviceContext->AdvertisedCurrentLevel = Uc120AdvertisedCurrentLevelUnknown;
-        pDeviceContext->Orientation = 0;
-        UC120ToggleReg4YetUnknown(pDeviceContext, 1);
-        break;
-    case Uc120EventAttach:
-        pDeviceContext->Uc120Event = MessageType;
-        pDeviceContext->Uc120PortType = Power;
-        pDeviceContext->PortPartnerType = PartnerType;
-        pDeviceContext->Orientation = Polarity;
-        UC120ToggleReg4YetUnknown(pDeviceContext, 0);
-        break;
     }
 
     TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
