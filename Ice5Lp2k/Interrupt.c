@@ -94,14 +94,14 @@ void UC120InterruptIsrInternal(PDEVICE_CONTEXT DeviceContext)
 				if (DeviceContext->Uc120Event != Uc120EventDetach)
 				{
 					UC120ReportState(DeviceContext, Uc120EventDetach, Uc120PortTypeUnknown, Uc120PortPartnerTypeUnknown, Uc120AdvertisedCurrentLevelUnknown, 0);
-					
+
 					DeviceContext->Uc120Event = Uc120EventDetach;
 					DeviceContext->Uc120PortType = Uc120PortTypeUnknown;
 					DeviceContext->PortPartnerType = Uc120PortPartnerTypeUnknown;
 					DeviceContext->AdvertisedCurrentLevel = Uc120AdvertisedCurrentLevelUnknown;
 					DeviceContext->Orientation = 0;
 					UC120ToggleReg4YetUnknown(DeviceContext, 1);
-					
+
 					SetVConn(DeviceContext, 0);
 					SetPowerRole(DeviceContext, 0);
 				}
@@ -114,11 +114,11 @@ void UC120InterruptIsrInternal(PDEVICE_CONTEXT DeviceContext)
 				if (DeviceContext->Uc120Event != Uc120EventAttach)
 				{
 					UC120ReportState(DeviceContext, Uc120EventAttach, Uc120PortTypeDfp, Uc120PortPartnerTypeUfp, Current, Polarity);
-					
+
 					DeviceContext->Uc120Event = Uc120EventAttach;
 					DeviceContext->Uc120PortType = Uc120PortTypeDfp;
 					DeviceContext->PortPartnerType = Uc120PortPartnerTypeUfp;
-        	        DeviceContext->AdvertisedCurrentLevel = Current;
+					DeviceContext->AdvertisedCurrentLevel = Current;
 					DeviceContext->Orientation = Polarity;
 
 					UC120ToggleReg4YetUnknown(DeviceContext, 0);
@@ -132,13 +132,13 @@ void UC120InterruptIsrInternal(PDEVICE_CONTEXT DeviceContext)
 				if (DeviceContext->Uc120Event != Uc120EventAttach)
 				{
 					UC120ReportState(DeviceContext, Uc120EventAttach, Uc120PortTypeDfp, Uc120PortPartnerTypePoweredCableUfp, Current, Polarity);
-					
+
 					DeviceContext->Uc120Event = Uc120EventAttach;
 					DeviceContext->Uc120PortType = Uc120PortTypeDfp;
 					DeviceContext->PortPartnerType = Uc120PortPartnerTypePoweredCableUfp;
-        	        DeviceContext->AdvertisedCurrentLevel = Current;
+					DeviceContext->AdvertisedCurrentLevel = Current;
 					DeviceContext->Orientation = Polarity;
-                    
+
 					UC120ToggleReg4YetUnknown(DeviceContext, 0);
 				}
 				break;
@@ -147,13 +147,13 @@ void UC120InterruptIsrInternal(PDEVICE_CONTEXT DeviceContext)
 				if (DeviceContext->Uc120Event != Uc120EventAttach)
 				{
 					UC120ReportState(DeviceContext, Uc120EventAttach, Uc120PortTypeUfp, Uc120PortPartnerTypeDfp, Current, Polarity);
-					
+
 					DeviceContext->Uc120Event = Uc120EventAttach;
 					DeviceContext->Uc120PortType = Uc120PortTypeUfp;
 					DeviceContext->PortPartnerType = Uc120PortPartnerTypeDfp;
-        	        DeviceContext->AdvertisedCurrentLevel = Current;
+					DeviceContext->AdvertisedCurrentLevel = Current;
 					DeviceContext->Orientation = Polarity;
-                    
+
 					UC120ToggleReg4YetUnknown(DeviceContext, 0);
 				}
 				break;
@@ -162,13 +162,13 @@ void UC120InterruptIsrInternal(PDEVICE_CONTEXT DeviceContext)
 				if (DeviceContext->Uc120Event != Uc120EventAttach)
 				{
 					UC120ReportState(DeviceContext, Uc120EventAttach, Uc120PortTypeDfp, Uc120PortPartnerTypeAudioAccessory, Current, 0);
-					
+
 					DeviceContext->Uc120Event = Uc120EventAttach;
 					DeviceContext->Uc120PortType = Uc120PortTypeDfp;
 					DeviceContext->PortPartnerType = Uc120PortPartnerTypeAudioAccessory;
-        	        DeviceContext->AdvertisedCurrentLevel = Current;
+					DeviceContext->AdvertisedCurrentLevel = Current;
 					DeviceContext->Orientation = 0;
-                    
+
 					UC120ToggleReg4YetUnknown(DeviceContext, 0);
 				}
 				break;
@@ -177,13 +177,13 @@ void UC120InterruptIsrInternal(PDEVICE_CONTEXT DeviceContext)
 				if (DeviceContext->Uc120Event != Uc120EventAttach)
 				{
 					UC120ReportState(DeviceContext, Uc120EventAttach, Uc120PortTypeDfp, Uc120PortPartnerTypeDebugAccessory, Current, 0);
-					
+
 					DeviceContext->Uc120Event = Uc120EventAttach;
 					DeviceContext->Uc120PortType = Uc120PortTypeDfp;
 					DeviceContext->PortPartnerType = Uc120PortPartnerTypeDebugAccessory;
-        	        DeviceContext->AdvertisedCurrentLevel = Current;
+					DeviceContext->AdvertisedCurrentLevel = Current;
 					DeviceContext->Orientation = 0;
-                    
+
 					UC120ToggleReg4YetUnknown(DeviceContext, 0);
 				}
 				break;
@@ -195,13 +195,13 @@ void UC120InterruptIsrInternal(PDEVICE_CONTEXT DeviceContext)
 				if (DeviceContext->Uc120Event != Uc120EventAttach)
 				{
 					UC120ReportState(DeviceContext, Uc120EventAttach, Uc120PortTypeUfp, Uc120PortPartnerTypePoweredAccessory, Current, Polarity);
-					
+
 					DeviceContext->Uc120Event = Uc120EventAttach;
 					DeviceContext->Uc120PortType = Uc120PortTypeUfp;
 					DeviceContext->PortPartnerType = Uc120PortPartnerTypePoweredAccessory;
-        	        DeviceContext->AdvertisedCurrentLevel = Current;
+					DeviceContext->AdvertisedCurrentLevel = Current;
 					DeviceContext->Orientation = Polarity;
-                    
+
 					UC120ToggleReg4YetUnknown(DeviceContext, 0);
 				}
 				break;
@@ -236,7 +236,7 @@ void UC120InterruptIsrInternal(PDEVICE_CONTEXT DeviceContext)
 			}
 
 			UC120ReportState(DeviceContext, Uc120EventCurrentLevelChange, Uc120PortTypeUnknown, Uc120PortPartnerTypeUnknown, Current, 0);
-        	pDeviceContext->AdvertisedCurrentLevel = UsbCurrentType;
+			pDeviceContext->AdvertisedCurrentLevel = UsbCurrentType;
 		}
 	}
 
@@ -354,7 +354,7 @@ void PmicInterrupt1WorkItem(WDFINTERRUPT Interrupt, WDFOBJECT AssociatedObject)
 	{
 		UC120ReportState(pDeviceContext, Uc120EventAttach, Uc120PortTypeDfp, Uc120PortPartnerTypeUfp, Uc120AdvertisedCurrentLevelDefaultUsb, 0);
 
-        // Possible workaround for a bug? Swaps partner/host states
+		// Possible workaround for a bug? Swaps partner/host states
 		pDeviceContext->Orientation = 0;
 		pDeviceContext->PortPartnerType = Uc120PortPartnerTypeDfp; //?? It is like this in the original driver
 		pDeviceContext->AdvertisedCurrentLevel = Uc120AdvertisedCurrentLevelDefaultUsb;
