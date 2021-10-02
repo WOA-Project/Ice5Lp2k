@@ -4,58 +4,78 @@
 
 EXTERN_C_START
 
+typedef union _UC120_REGISTER_2 {
+	BYTE Buffer;
+	struct {
+		BYTE PDMessageSizeChanged : 1;
+		BYTE HasIncomingPDMessage : 1;
+		BYTE State : 4;
+		BYTE AdvertisedCurrentLevel : 2;
+	} Data;
+} UC120_REGISTER_2, * PUC120_REGISTER_2;
+
+typedef union _UC120_REGISTER_7 {
+	BYTE Buffer;
+	struct {
+		BYTE Reserved0 : 4;
+		BYTE AdvertisedCurrentLevel : 2;
+		BYTE Polarity : 1;
+		BYTE Reserved1 : 1;
+	} Data;
+} UC120_REGISTER_7, * PUC120_REGISTER_7;
+
 typedef struct _SPI_DEVICE_CONNECTION {
-    ULONG SpiDeviceIdLow;
-    ULONG SpiDeviceIdHigh;
-    WDFIOTARGET SpiDeviceIoTarget;
+	ULONG SpiDeviceIdLow;
+	ULONG SpiDeviceIdHigh;
+	WDFIOTARGET SpiDeviceIoTarget;
 } SPI_DEVICE_CONNECTION, * PSPI_DEVICE_CONNECTION;
 
 typedef struct _DEVICE_CONTEXT
 {
-    WDFDEVICE Device;
-    SPI_DEVICE_CONNECTION SpiDevice;
+	WDFDEVICE Device;
+	SPI_DEVICE_CONNECTION SpiDevice;
 
-    ULONG GpioDeviceIdLow;
-    ULONG GpioDeviceIdHigh;
+	ULONG GpioDeviceIdLow;
+	ULONG GpioDeviceIdHigh;
 
-    WDFINTERRUPT Uc120Interrupt;
-    WDFINTERRUPT PlugDetInterrupt;
-    WDFINTERRUPT Pmic1Interrupt;
-    WDFINTERRUPT Pmic2Interupt;
+	WDFINTERRUPT Uc120Interrupt;
+	WDFINTERRUPT PlugDetInterrupt;
+	WDFINTERRUPT Pmic1Interrupt;
+	WDFINTERRUPT Pmic2Interupt;
 
-    WDFQUEUE DefaultIoQueue;
-    WDFQUEUE DelayedIoCtlQueue;
-    WDFQUEUE PdReadQueue;
-    WDFQUEUE PdWriteQueue;
+	WDFQUEUE DefaultIoQueue;
+	WDFQUEUE DelayedIoCtlQueue;
+	WDFQUEUE PdReadQueue;
+	WDFQUEUE PdWriteQueue;
 
-    WDFCOLLECTION DelayedQueryIoctlRequestCol;
+	WDFCOLLECTION DelayedQueryIoctlRequestCol;
 
-    UCHAR Register0;
-    UCHAR Register1;
-    UCHAR Register2;
-    UCHAR Register3;
-    UCHAR Register4;
-    UCHAR Register5;
-    UCHAR Register6;
-    UCHAR Register7;
-    UCHAR Register8;
-    UCHAR Register13;
+	UCHAR Register0;
+	UCHAR Register1;
+	UC120_REGISTER_2 Register2;
+	UCHAR Register3;
+	UCHAR Register4;
+	UCHAR Register5;
+	UCHAR Register6;
+	UC120_REGISTER_7 Register7;
+	UCHAR Register8;
+	UCHAR Register13;
 
-    UC120_EVENT Uc120Event;
-    UC120_PORT_TYPE Uc120PortType;
-    UC120_ADVERTISED_CURRENT_LEVEL AdvertisedCurrentLevel;
-    UC120_PORT_PARTNER_TYPE PortPartnerType;
-    unsigned short Orientation;
+	UC120_EVENT Uc120Event;
+	UC120_PORT_TYPE Uc120PortType;
+	UC120_ADVERTISED_CURRENT_LEVEL AdvertisedCurrentLevel;
+	UC120_PORT_PARTNER_TYPE PortPartnerType;
+	unsigned short Orientation;
 
-    UCHAR PDMessageType;
+	UCHAR PDMessageType;
 
-    KEVENT PdEvent;
+	KEVENT PdEvent;
 
-    WDFWAITLOCK DeviceWaitLock;
+	WDFWAITLOCK DeviceWaitLock;
 
-    // When UC120 is calibrated, set to 1
-    UCHAR Calibrated;
-} DEVICE_CONTEXT, *PDEVICE_CONTEXT;
+	// When UC120 is calibrated, set to 1
+	UCHAR Calibrated;
+} DEVICE_CONTEXT, * PDEVICE_CONTEXT;
 
 //
 // This macro will generate an inline function called DeviceGetContext
@@ -69,8 +89,8 @@ WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, DeviceGetContext)
 //
 NTSTATUS
 Ice5Lp2kCreateDevice(
-    _Inout_ PWDFDEVICE_INIT DeviceInit
-    );
+	_Inout_ PWDFDEVICE_INIT DeviceInit
+);
 
 EVT_WDF_DEVICE_PREPARE_HARDWARE UC120EvtDevicePrepareHardware;
 EVT_WDF_DEVICE_D0_ENTRY UC120EvtDeviceD0Entry;
@@ -90,22 +110,22 @@ EVT_WDF_INTERRUPT_ISR PmicInterrupt2Isr;
 void UC120InterruptIsrInternal(PDEVICE_CONTEXT DeviceContext);
 
 NTSTATUS UC120SpiRead(
-    _In_ PSPI_DEVICE_CONNECTION Connection,
-    _In_ UCHAR RegisterAddr, _Out_ PUCHAR RegisterValue, _In_ size_t RegReadSize
+	_In_ PSPI_DEVICE_CONNECTION Connection,
+	_In_ UCHAR RegisterAddr, _Out_ PUCHAR RegisterValue, _In_ size_t RegReadSize
 );
 
 NTSTATUS UC120SpiWrite(
-    _In_ PSPI_DEVICE_CONNECTION Connection,
-    _In_ UCHAR RegisterAddr, _In_ PVOID Content, _In_ size_t Size
+	_In_ PSPI_DEVICE_CONNECTION Connection,
+	_In_ UCHAR RegisterAddr, _In_ PVOID Content, _In_ size_t Size
 );
 
 NTSTATUS UC120ReportState(
-    PDEVICE_CONTEXT DeviceContext,
-    UC120_EVENT MessageType,
-    UC120_PORT_TYPE Power,
-    UC120_PORT_PARTNER_TYPE PartnerType,
-    UC120_ADVERTISED_CURRENT_LEVEL UsbCurrentType,
-    unsigned short Polarity);
+	PDEVICE_CONTEXT DeviceContext,
+	UC120_EVENT MessageType,
+	UC120_PORT_TYPE Power,
+	UC120_PORT_PARTNER_TYPE PartnerType,
+	UC120_ADVERTISED_CURRENT_LEVEL UsbCurrentType,
+	unsigned short Polarity);
 
 NTSTATUS UC120ToggleReg4YetUnknown(PDEVICE_CONTEXT DeviceContext, UCHAR Bit);
 void UC120ProcessIncomingPdMessage(PDEVICE_CONTEXT DeviceContext);

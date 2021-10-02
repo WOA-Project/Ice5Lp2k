@@ -17,19 +17,19 @@ BOOLEAN UC120InterruptIsr(WDFINTERRUPT Interrupt, ULONG MessageID)
 
 	WdfWaitLockAcquire(pDeviceContext->DeviceWaitLock, NULL);
 
-	status = UC120SpiRead(&pDeviceContext->SpiDevice, 2, &pDeviceContext->Register2, 1);
+	status = UC120SpiRead(&pDeviceContext->SpiDevice, 2, &pDeviceContext->Register2.Buffer, sizeof(UC120_REGISTER_2));
 	if (!NT_SUCCESS(status))
 	{
 		TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiRead failed %!STATUS!", status);
-		pDeviceContext->Register2 = 0xff;
+		pDeviceContext->Register2.Buffer = 0xff;
 	}
 	else
 	{
 		UC120InterruptIsrInternal(pDeviceContext);
 	}
 
-	pDeviceContext->Register2 = 0xFFu;
-	status = UC120SpiWrite(&pDeviceContext->SpiDevice, 2, &pDeviceContext->Register2, 1);
+	pDeviceContext->Register2.Buffer = 0xFFu;
+	status = UC120SpiWrite(&pDeviceContext->SpiDevice, 2, &pDeviceContext->Register2.Buffer, sizeof(UC120_REGISTER_2));
 	if (!NT_SUCCESS(status))
 	{
 		TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiRead failed %!STATUS!", status);
@@ -44,7 +44,6 @@ void UC120InterruptIsrInternal(PDEVICE_CONTEXT DeviceContext)
 {
 	NTSTATUS status;
 	UCHAR Role;
-	UCHAR Reg7Value;
 	unsigned short Polarity;
 	UCHAR CableType;
 	UC120_ADVERTISED_CURRENT_LEVEL Current;
@@ -52,9 +51,9 @@ void UC120InterruptIsrInternal(PDEVICE_CONTEXT DeviceContext)
 
 	TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
-	if (DeviceContext->Register2 & 0xFC)
+	if (DeviceContext->Register2.Data.State || DeviceContext->Register2.Data.AdvertisedCurrentLevel)
 	{
-		status = UC120SpiRead(&DeviceContext->SpiDevice, 7, &DeviceContext->Register7, 1u);
+		status = UC120SpiRead(&DeviceContext->SpiDevice, 7, &DeviceContext->Register7.Buffer, sizeof(UC120_REGISTER_7));
 		if (!NT_SUCCESS(status))
 		{
 			TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiRead failed %!STATUS!", status);
@@ -62,13 +61,11 @@ void UC120InterruptIsrInternal(PDEVICE_CONTEXT DeviceContext)
 			return;
 		}
 
-		Role = (DeviceContext->Register2 & 0x3Cu) >> 2;
+		Role = DeviceContext->Register2.Data.State;
 		if (Role)
 		{
-			Reg7Value = DeviceContext->Register7;
-
-			Polarity = (Reg7Value & 0x40) ? 2 : 1; // 1: EnumMuxStateUSBStraight, 2: EnumMuxStateUSBTwisted
-			CableType = (Reg7Value >> 4) & 3;
+			Polarity = DeviceContext->Register7.Data.Polarity ? 2 : 1; // 1: EnumMuxStateUSBStraight, 2: EnumMuxStateUSBTwisted
+			CableType = DeviceContext->Register7.Data.AdvertisedCurrentLevel;
 
 			switch (CableType)
 			{
@@ -210,7 +207,7 @@ void UC120InterruptIsrInternal(PDEVICE_CONTEXT DeviceContext)
 			}
 		}
 
-		CurrentChanged = DeviceContext->Register2 >> 6;
+		CurrentChanged = DeviceContext->Register2.Data.AdvertisedCurrentLevel;
 		if (CurrentChanged)
 		{
 			switch (CurrentChanged)
@@ -236,15 +233,15 @@ void UC120InterruptIsrInternal(PDEVICE_CONTEXT DeviceContext)
 			}
 
 			UC120ReportState(DeviceContext, Uc120EventCurrentLevelChange, Uc120PortTypeUnknown, Uc120PortPartnerTypeUnknown, Current, 0);
-			pDeviceContext->AdvertisedCurrentLevel = UsbCurrentType;
+			DeviceContext->AdvertisedCurrentLevel = Current;
 		}
 	}
 
-	if (DeviceContext->Register2 & 2)
+	if (DeviceContext->Register2.Data.HasIncomingPDMessage)
 	{
 		UC120ProcessIncomingPdMessage(DeviceContext);
 	}
-	if (DeviceContext->Register2 & 1)
+	if (DeviceContext->Register2.Data.PDMessageSizeChanged)
 	{
 		UC120SynchronizeIncomingMessageSize(DeviceContext);
 	}
@@ -375,8 +372,8 @@ NTSTATUS UC120InterruptEnable(WDFINTERRUPT Interrupt, WDFDEVICE AssociatedDevice
 
 	Device = WdfInterruptGetDevice(Interrupt);
 	pDeviceContext = DeviceGetContext(Device);
-	pDeviceContext->Register2 = 0xFFu;
-	status = UC120SpiWrite(&pDeviceContext->SpiDevice, 2, &pDeviceContext->Register2, 1);
+	pDeviceContext->Register2.Buffer = 0xFFu;
+	status = UC120SpiWrite(&pDeviceContext->SpiDevice, 2, &pDeviceContext->Register2, sizeof(UC120_REGISTER_2));
 	if (!NT_SUCCESS(status))
 	{
 		TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
@@ -407,8 +404,8 @@ NTSTATUS UC120InterruptEnable(WDFINTERRUPT Interrupt, WDFDEVICE AssociatedDevice
 		goto exit;
 	}
 
-	UC120SpiRead(&pDeviceContext->SpiDevice, 2, &pDeviceContext->Register2, 1u);
-	status = UC120SpiRead(&pDeviceContext->SpiDevice, 7, &pDeviceContext->Register7, 1u);
+	UC120SpiRead(&pDeviceContext->SpiDevice, 2, &pDeviceContext->Register2.Buffer, sizeof(UC120_REGISTER_2));
+	status = UC120SpiRead(&pDeviceContext->SpiDevice, 7, &pDeviceContext->Register7.Buffer, sizeof(UC120_REGISTER_7));
 	if (!NT_SUCCESS(status))
 	{
 		TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiRead failed %!STATUS!", status);
