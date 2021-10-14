@@ -261,25 +261,9 @@ BOOLEAN PlugdetInterruptIsr(WDFINTERRUPT Interrupt, ULONG MessageId)
 
 BOOLEAN PmicInterrupt1Isr(WDFINTERRUPT Interrupt, ULONG MessageId)
 {
-	WDFDEVICE Device;
-	NTSTATUS status;
-	PDEVICE_CONTEXT pDeviceContext;
-
 	UNREFERENCED_PARAMETER(MessageId);
 	TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
 
-	Device = WdfInterruptGetDevice(Interrupt);
-	pDeviceContext = DeviceGetContext(Device);
-
-	WdfWaitLockAcquire(pDeviceContext->DeviceWaitLock, 0);
-	pDeviceContext->Register5 |= 0x40u;
-	status = UC120SpiWrite(&pDeviceContext->SpiDevice, 5, &pDeviceContext->Register5, 1);
-	if (!NT_SUCCESS(status))
-	{
-		TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
-	}
-
-	WdfWaitLockRelease(pDeviceContext->DeviceWaitLock);
 	WdfInterruptQueueWorkItemForIsr(Interrupt);
 
 	TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
@@ -335,8 +319,8 @@ BOOLEAN PmicInterrupt2Isr(WDFINTERRUPT Interrupt, ULONG MessageId)
 void PmicInterrupt1WorkItem(WDFINTERRUPT Interrupt, WDFOBJECT AssociatedObject)
 {
 	WDFDEVICE Device;
+	NTSTATUS status;
 	PDEVICE_CONTEXT pDeviceContext;
-	LARGE_INTEGER Delay;
 
 	UNREFERENCED_PARAMETER(AssociatedObject);
 	TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Entry");
@@ -344,19 +328,15 @@ void PmicInterrupt1WorkItem(WDFINTERRUPT Interrupt, WDFOBJECT AssociatedObject)
 	Device = WdfInterruptGetDevice(Interrupt);
 	pDeviceContext = DeviceGetContext(Device);
 
-	Delay.QuadPart = 0xFFFFFFFFFFB3B4C0;
-	KeDelayExecutionThread(0, 0, &Delay);
-
-	if (pDeviceContext->Uc120Event == Uc120EventDetach && pDeviceContext->Register5 & 0x40)
+	WdfWaitLockAcquire(pDeviceContext->DeviceWaitLock, 0);
+	pDeviceContext->Register5 |= 0x40u;
+	status = UC120SpiWrite(&pDeviceContext->SpiDevice, 5, &pDeviceContext->Register5, 1);
+	if (!NT_SUCCESS(status))
 	{
-		UC120ReportState(pDeviceContext, Uc120EventAttach, Uc120PortTypeDfp, Uc120PortPartnerTypeUfp, Uc120AdvertisedCurrentLevelDefaultUsb, 0);
-
-		// Possible workaround for a bug? Swaps partner/host states
-		pDeviceContext->Orientation = 0;
-		pDeviceContext->PortPartnerType = Uc120PortPartnerTypeDfp; //?? It is like this in the original driver
-		pDeviceContext->AdvertisedCurrentLevel = Uc120AdvertisedCurrentLevelDefaultUsb;
-		pDeviceContext->Uc120PortType = Uc120PortTypeUfp; //?? It is like this in the original driver
+		TraceEvents(TRACE_LEVEL_ERROR, TRACE_DEVICE, "UC120SpiWrite failed %!STATUS!", status);
 	}
+
+	WdfWaitLockRelease(pDeviceContext->DeviceWaitLock);
 
 	TraceEvents(TRACE_LEVEL_INFORMATION, TRACE_DRIVER, "%!FUNC! Exit");
 }
